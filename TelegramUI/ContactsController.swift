@@ -217,7 +217,9 @@ public class ContactsController: ViewController {
                 strongSelf.contactsNode.contactListNode.listNode.clearHighlightAnimated(true)
                 switch peer {
                     case let .peer(peer, _):
-                        (strongSelf.navigationController as? NavigationController)?.pushViewController(ChatController(account: strongSelf.account, chatLocation: .peer(peer.id)))
+                        let infoController = userInfoController(account: strongSelf.account, peerId: peer.id)
+                        (strongSelf.navigationController as? NavigationController)?.pushViewController(infoController)
+//                        (strongSelf.navigationController as? NavigationController)?.pushViewController(ChatController(account: strongSelf.account, chatLocation: .peer(peer.id)))
                     case let .deviceContact(id, _):
                         let _ = (strongSelf.account.telegramApplicationContext.contactDataManager.extendedData(stableId: id)
                         |> take(1)

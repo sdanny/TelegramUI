@@ -178,8 +178,11 @@ func callListNodeEntriesForView(_ view: CallListView, state: CallListNodeState, 
     var result: [CallListNodeEntry] = []
     for entry in view.entries {
         switch entry {
-            case let .message(topMessage, messages):
-                result.append(.messageEntry(topMessage: topMessage, messages: messages, theme: state.theme, strings: state.strings, dateTimeFormat: state.dateTimeFormat, editing: state.editing, hasActiveRevealControls: state.messageIdWithRevealedOptions == topMessage.id))
+            case let .message(_, messages):
+                let entries = messages.map { message -> CallListNodeEntry in
+                    return .messageEntry(topMessage: message, messages: [message], theme: state.theme, strings: state.strings, dateTimeFormat: state.dateTimeFormat, editing: state.editing, hasActiveRevealControls: state.messageIdWithRevealedOptions == message.id)
+                }
+                result.append(contentsOf: entries)
             case let .hole(index):
                 result.append(.holeEntry(index: index, theme: state.theme))
         }

@@ -557,7 +557,7 @@ private func deviceContactInfoEntries(account: Account, presentationData: Presen
     
     if !selecting {
         if let _ = peer {
-            entries.append(.sendMessage(entries.count, presentationData.theme, presentationData.strings.UserInfo_SendMessage))
+//            entries.append(.sendMessage(entries.count, presentationData.theme, presentationData.strings.UserInfo_SendMessage))
         } else {
             entries.append(.invite(entries.count, presentationData.theme, presentationData.strings.Contacts_InviteToTelegram))
         }

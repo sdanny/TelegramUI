@@ -11,8 +11,8 @@ public final class TelegramRootController: NavigationController {
     
     public var contactsController: ContactsController?
     public var callListController: CallListController?
-    public var chatListController: ChatListController?
-    public var accountSettingsController: ViewController?
+//    public var chatListController: ChatListController?
+//    public var accountSettingsController: ViewController?
     
     private var permissionsDisposable: Disposable?
     private var presentationDataDisposable: Disposable?
@@ -51,7 +51,7 @@ public final class TelegramRootController: NavigationController {
     
     public func addRootControllers(showCallsTab: Bool) {
         let tabBarController = TabBarController(navigationBarPresentationData: NavigationBarPresentationData(presentationData: self.presentationData), theme: TabBarControllerTheme(rootControllerTheme: self.presentationData.theme))
-        let chatListController = ChatListController(account: self.account, groupId: nil, controlsHistoryPreload: true)
+//        let chatListController = ChatListController(account: self.account, groupId: nil, controlsHistoryPreload: true)
         let callListController = CallListController(account: self.account, mode: .tab)
         
         var controllers: [ViewController] = []
@@ -62,17 +62,17 @@ public final class TelegramRootController: NavigationController {
         if showCallsTab {
             controllers.append(callListController)
         }
-        controllers.append(chatListController)
+//        controllers.append(chatListController)
         
-        let accountSettingsController = settingsController(account: self.account, accountManager: self.account.telegramApplicationContext.accountManager)
-        controllers.append(accountSettingsController)
+//        let accountSettingsController = settingsController(account: self.account, accountManager: self.account.telegramApplicationContext.accountManager)
+//        controllers.append(accountSettingsController)
         
-        tabBarController.setControllers(controllers, selectedIndex: controllers.count - 2)
+        tabBarController.setControllers(controllers, selectedIndex: controllers.count - 1)
         
         self.contactsController = contactsController
         self.callListController = callListController
-        self.chatListController = chatListController
-        self.accountSettingsController = accountSettingsController
+//        self.chatListController = chatListController
+//        self.accountSettingsController = accountSettingsController
         self.rootTabController = tabBarController
         self.pushViewController(tabBarController, animated: false)
     }
@@ -86,8 +86,8 @@ public final class TelegramRootController: NavigationController {
         if showCallsTab {
             controllers.append(self.callListController!)
         }
-        controllers.append(self.chatListController!)
-        controllers.append(self.accountSettingsController!)
+//        controllers.append(self.chatListController!)
+//        controllers.append(self.accountSettingsController!)
         
         rootTabController.setControllers(controllers, selectedIndex: nil)
     }
@@ -103,11 +103,11 @@ public final class TelegramRootController: NavigationController {
             rootTabController.selectedIndex = index
         }
         
-        self.chatListController?.activateSearch()
+//        self.chatListController?.activateSearch()
     }
     
     public func openRootCompose() {
-        self.chatListController?.composePressed()
+//        self.chatListController?.composePressed()
     }
     
     public func openRootCamera() {

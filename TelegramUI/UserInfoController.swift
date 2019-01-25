@@ -389,7 +389,7 @@ private enum UserInfoEntry: ItemListNodeEntry {
                 }, tag: UserInfoEntryTag.phoneNumber)
             case let .userName(theme, text, value):
                 return ItemListTextWithLabelItem(theme: theme, label: text, text: "@\(value)", textColor: .accent, enabledEntitiyTypes: [], multiline: false, sectionId: self.section, action: {
-                    arguments.displayUsernameContextMenu("@\(value)")
+                    arguments.displayCopyContextMenu(.username, "@\(value)")
                 }, longTapAction: {
                     arguments.displayCopyContextMenu(.username, "@\(value)")
                 }, tag: UserInfoEntryTag.username)
@@ -619,22 +619,22 @@ private func userInfoEntries(account: Account, presentationData: PresentationDat
             entries.append(UserInfoEntry.userName(presentationData.theme, presentationData.strings.Profile_Username, username))
         }
         
-        if !(peer is TelegramSecretChat) {
-            entries.append(UserInfoEntry.sendMessage(presentationData.theme, presentationData.strings.UserInfo_SendMessage))
-            if view.peerIsContact {
-                entries.append(UserInfoEntry.shareContact(presentationData.theme, presentationData.strings.UserInfo_ShareContact))
-            } else if let phone = user.phone, !phone.isEmpty {
-                entries.append(UserInfoEntry.addContact(presentationData.theme, presentationData.strings.UserInfo_AddContact))
-            }
+//        if !(peer is TelegramSecretChat) {
+//            entries.append(UserInfoEntry.sendMessage(presentationData.theme, presentationData.strings.UserInfo_SendMessage))
+//            if view.peerIsContact {
+//                entries.append(UserInfoEntry.shareContact(presentationData.theme, presentationData.strings.UserInfo_ShareContact))
+//            } else if let phone = user.phone, !phone.isEmpty {
+//                entries.append(UserInfoEntry.addContact(presentationData.theme, presentationData.strings.UserInfo_AddContact))
+//            }
             
-            if let cachedUserData = cachedPeerData as? CachedUserData, let hasAccountPeerPhone = cachedUserData.hasAccountPeerPhone, !hasAccountPeerPhone {
-                entries.append(UserInfoEntry.shareMyContact(presentationData.theme, presentationData.strings.UserInfo_ShareMyContactInfo))
-            }
-            
-            if let peer = peer as? TelegramUser, peer.botInfo == nil {
-                entries.append(UserInfoEntry.startSecretChat(presentationData.theme, presentationData.strings.UserInfo_StartSecretChat))
-            }
-        }
+//            if let cachedUserData = cachedPeerData as? CachedUserData, let hasAccountPeerPhone = cachedUserData.hasAccountPeerPhone, !hasAccountPeerPhone {
+//                entries.append(UserInfoEntry.shareMyContact(presentationData.theme, presentationData.strings.UserInfo_ShareMyContactInfo))
+//            }
+//
+//            if let peer = peer as? TelegramUser, peer.botInfo == nil {
+//                entries.append(UserInfoEntry.startSecretChat(presentationData.theme, presentationData.strings.UserInfo_StartSecretChat))
+//            }
+//        }
         
         if let peer = peer as? TelegramUser, let botInfo = peer.botInfo {
             if botInfo.flags.contains(.worksWithGroups) {
@@ -655,7 +655,7 @@ private func userInfoEntries(account: Account, presentationData: PresentationDat
             }
         }
         
-        entries.append(UserInfoEntry.sharedMedia(presentationData.theme, presentationData.strings.GroupInfo_SharedMedia))
+//        entries.append(UserInfoEntry.sharedMedia(presentationData.theme, presentationData.strings.GroupInfo_SharedMedia))
     }
     let notificationsLabel: String
     let notificationSettings = view.notificationSettings as? TelegramPeerNotificationSettings ?? TelegramPeerNotificationSettings.defaultSettings
@@ -670,7 +670,7 @@ private func userInfoEntries(account: Account, presentationData: PresentationDat
     } else {
         notificationsLabel = localizedPeerNotificationSoundString(strings: presentationData.strings, sound: notificationSettings.messageSound, default: globalNotificationSettings.effective.channels.sound)
     }
-    entries.append(UserInfoEntry.notifications(presentationData.theme, presentationData.strings.GroupInfo_Notifications, notificationsLabel))
+//    entries.append(UserInfoEntry.notifications(presentationData.theme, presentationData.strings.GroupInfo_Notifications, notificationsLabel))
     
     if isEditing {
         if view.peerIsContact {
@@ -681,13 +681,13 @@ private func userInfoEntries(account: Account, presentationData: PresentationDat
             entries.append(UserInfoEntry.secretEncryptionKey(presentationData.theme, presentationData.strings.Profile_EncryptionKey, keyFingerprint))
         }
         
-        if let groupsInCommon = (cachedPeerData as? CachedUserData)?.commonGroupCount, groupsInCommon != 0 {
-            entries.append(UserInfoEntry.groupsInCommon(presentationData.theme, presentationData.strings.UserInfo_GroupsInCommon, groupsInCommon))
-        }
+//        if let groupsInCommon = (cachedPeerData as? CachedUserData)?.commonGroupCount, groupsInCommon != 0 {
+//            entries.append(UserInfoEntry.groupsInCommon(presentationData.theme, presentationData.strings.UserInfo_GroupsInCommon, groupsInCommon))
+//        }
         
-        if let peer = peer as? TelegramUser, let _ = peer.botInfo {
-            entries.append(UserInfoEntry.botReport(presentationData.theme, presentationData.strings.ReportPeer_Report))
-        }
+//        if let peer = peer as? TelegramUser, let _ = peer.botInfo {
+//            entries.append(UserInfoEntry.botReport(presentationData.theme, presentationData.strings.ReportPeer_Report))
+//        }
         
         if let cachedData = cachedPeerData as? CachedUserData {
             if cachedData.isBlocked {
