@@ -13,6 +13,7 @@ module TelegramUIPrivateModule {
     header "../STPCard.h"
     header "../STPToken.h"
     header "../OngoingCallThreadLocalContext.h"
+    header "../Recorder.h"
     header "../SecretChatKeyVisualization.h"
     header "../NumberPluralizationForm.h"
     header "../DeviceProximityManager.h"

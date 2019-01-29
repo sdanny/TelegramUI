@@ -1133,6 +1133,8 @@
 		D0FE4DE61F0BA58A00E8A0B3 /* OverlayMediaItemNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FE4DE51F0BA58A00E8A0B3 /* OverlayMediaItemNode.swift */; };
 		D0FFF7F61F55B82500BEBC01 /* InstantPageAudioItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FFF7F51F55B82500BEBC01 /* InstantPageAudioItem.swift */; };
 		D0FFF7F81F55B83600BEBC01 /* InstantPageAudioNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FFF7F71F55B83600BEBC01 /* InstantPageAudioNode.swift */; };
+		F6C5EA4621FEF2AF00327D98 /* Recorder.m in Sources */ = {isa = PBXBuildFile; fileRef = F6C5EA4421FEF2AF00327D98 /* Recorder.m */; };
+		F6C5EA4721FEF2AF00327D98 /* Recorder.h in Headers */ = {isa = PBXBuildFile; fileRef = F6C5EA4521FEF2AF00327D98 /* Recorder.h */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -2351,6 +2353,8 @@
 		D0FE4DE51F0BA58A00E8A0B3 /* OverlayMediaItemNode.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OverlayMediaItemNode.swift; sourceTree = "<group>"; };
 		D0FFF7F51F55B82500BEBC01 /* InstantPageAudioItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstantPageAudioItem.swift; sourceTree = "<group>"; };
 		D0FFF7F71F55B83600BEBC01 /* InstantPageAudioNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstantPageAudioNode.swift; sourceTree = "<group>"; };
+		F6C5EA4421FEF2AF00327D98 /* Recorder.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Recorder.m; sourceTree = "<group>"; };
+		F6C5EA4521FEF2AF00327D98 /* Recorder.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Recorder.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -4158,6 +4162,8 @@
 				D0EC6FFA1EBA1DE900EBF1C3 /* OngoingCallThreadLocalContext.h */,
 				D0EC6FFC1EBA1F2400EBF1C3 /* OngoingCallThreadLocalContext.mm */,
 				D00ADFDA1EBA2EAF00873D2E /* OngoingCallContext.swift */,
+				F6C5EA4521FEF2AF00327D98 /* Recorder.h */,
+				F6C5EA4421FEF2AF00327D98 /* Recorder.m */,
 			);
 			name = Calls;
 			sourceTree = "<group>";
@@ -4933,6 +4939,7 @@
 				D0E9BA201F05577700F079A4 /* STPCardParams.h in Headers */,
 				D0E9BA151F05574500F079A4 /* STPCardValidator.h in Headers */,
 				D0E9BA401F0558FE00F079A4 /* StripeError.h in Headers */,
+				F6C5EA4721FEF2AF00327D98 /* Recorder.h in Headers */,
 				D0E9BA191F05574500F079A4 /* STPPaymentCardTextField.h in Headers */,
 				D0383EDD207D1A1600C45548 /* TGEmojiSuggestions.h in Headers */,
 				D0E9BA3F1F0558FE00F079A4 /* STPSource.h in Headers */,
@@ -5595,6 +5602,7 @@
 				D0EC6D911EB9F58900EBF1C3 /* ChatMessageBubbleItemNode.swift in Sources */,
 				D0E8B8BD204479A500605593 /* SecretChatKeyController.swift in Sources */,
 				D0B85C1C1FF6F76000E795B4 /* AuthorizationSequencePasswordRecoveryController.swift in Sources */,
+				F6C5EA4621FEF2AF00327D98 /* Recorder.m in Sources */,
 				D0471B511EFD872F0074D609 /* CurrencyFormat.swift in Sources */,
 				D0EC6D921EB9F58900EBF1C3 /* ChatMessageDateAndStatusNode.swift in Sources */,
 				D01C06B31FBB49A5001561AB /* JoinLinkPreviewPeerContentNode.swift in Sources */,

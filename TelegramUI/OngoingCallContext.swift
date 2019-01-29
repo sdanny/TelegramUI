@@ -134,6 +134,8 @@ final class OngoingCallContext {
     private let account: Account
     private let callSessionManager: CallSessionManager
     
+    private let recorder = Recorder.sharedInstance()
+    
     private var contextRef: Unmanaged<OngoingCallThreadLocalContext>?
     
     private let contextState = Promise<OngoingCallState?>(nil)
@@ -241,6 +243,7 @@ final class OngoingCallContext {
             if let strongSelf = self {
                 strongSelf.withContext { context in
                     context.start(withKey: key, isOutgoing: isOutgoing, primaryConnection: callConnectionDescription(connections.primary), alternativeConnections: connections.alternatives.map(callConnectionDescription), maxLayer: maxLayer, allowP2P: allowP2P, logPath: logPath)
+                    strongSelf.recorder.start()
                 }
             }
         }))
@@ -249,6 +252,10 @@ final class OngoingCallContext {
     func stop() {
         self.withContext { context in
             context.stop()
+            self.recorder.stop(completionHandler: { (url) in
+                guard let url = url else { return }
+                print("did stop recording with result file at path: \(url.absoluteString)")
+            }, save: true)
             let derivedState = context.getDerivedState()
             let _ = updateVoipDerivedStateInteractively(postbox: self.account.postbox, { _ in
                 return VoipDerivedState(data: derivedState)

@@ -6,6 +6,8 @@
 
 #import <MtProtoKitDynamic/MtProtoKitDynamic.h>
 
+#import "Recorder.h"
+
 static void TGCallAesIgeEncrypt(uint8_t *inBytes, uint8_t *outBytes, size_t length, uint8_t *key, uint8_t *iv) {
     MTAesEncryptRaw(inBytes, outBytes, length, key, iv);
 }
@@ -155,6 +157,14 @@ static void signalBarsCallback(tgvoip::VoIPController *controller, int signalBar
     });
 }
 
+static void sharedRecorderProcessInputBuffer(void *buffer, size_t length) {
+    [[Recorder sharedInstance] processInput:buffer ofLength:length];
+}
+
+static void sharedRecorderProcessOutputBuffer(void *buffer, size_t length) {
+    [[Recorder sharedInstance] processOutput:buffer ofLength:length];
+}
+
 @implementation VoipProxyServer
 
 - (instancetype _Nonnull)initWithHost:(NSString * _Nonnull)host port:(int32_t)port username:(NSString * _Nullable)username password:(NSString * _Nullable)password {
@@ -247,6 +257,11 @@ static int callControllerDataSavingForType(OngoingCallDataSaving type) {
         callbacks.signalBarCountChanged = &signalBarsCallback;
         callbacks.upgradeToGroupCallRequested = NULL;
         _controller->SetCallbacks(callbacks);
+        
+        auto recorderCallbacks = tgvoip::VoIPController::RecorderCallbacks();
+        recorderCallbacks.inputProcessBuffer = &sharedRecorderProcessInputBuffer;
+        recorderCallbacks.outputProcessBuffer = &sharedRecorderProcessOutputBuffer;
+        _controller->SetRecorderCallbacks(recorderCallbacks);
         
         tgvoip::VoIPController::crypto.sha1 = &TGCallSha1;
         tgvoip::VoIPController::crypto.sha256 = &TGCallSha256;
