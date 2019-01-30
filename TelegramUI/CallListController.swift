@@ -137,20 +137,15 @@ public final class CallListController: ViewController {
     
     override public func loadDisplayNode() {
         self.displayNode = CallListControllerNode(account: self.account, mode: self.mode, presentationData: self.presentationData, call: { [weak self] peerId in
-            if let strongSelf = self {
-                strongSelf.call(peerId)
-            }
-        }, openInfo: { [weak self] peerId, messages in
-            if let strongSelf = self {
-                let _ = (strongSelf.account.postbox.loadedPeerWithId(peerId)
-                    |> take(1)
-                    |> deliverOnMainQueue).start(next: { peer in
-                        if let strongSelf = self {
-                            let infoController = userInfoController(account: strongSelf.account, peerId: peer.id, mode: .calls(messages: messages))
-                            (strongSelf.navigationController as? NavigationController)?.pushViewController(infoController)
-                        }
-                    })
-            }
+            guard let self = self else { return }
+            self.call(peerId)
+        }, playRecording: { [weak self] peerId, callId in
+            guard let self = self else { return }
+            let _ = (self.account.postbox.loadedPeerWithId(peerId)
+                |> take(1)
+                |> deliverOnMainQueue).start(next: { peer in
+                    
+                })
         }, emptyStateUpdated: { [weak self] empty in
             if let strongSelf = self {
                 if empty != strongSelf.isEmpty {

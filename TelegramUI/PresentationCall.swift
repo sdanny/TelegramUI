@@ -460,7 +460,7 @@ public final class PresentationCall {
                 self.audioSessionShouldBeActive.set(true)
                 if let _ = audioSessionControl, !wasActive || previousControl == nil {
                     let logName = "\(id.id)_\(id.accessHash)"
-                    self.ongoingContext.start(key: key, isOutgoing: sessionState.isOutgoing, connections: connections, maxLayer: maxLayer, allowP2P: allowsP2P, audioSessionActive: self.audioSessionActive.get(), logName: logName)
+                    self.ongoingContext.start(id: id, key: key, isOutgoing: sessionState.isOutgoing, connections: connections, maxLayer: maxLayer, allowP2P: allowsP2P, audioSessionActive: self.audioSessionActive.get(), logName: logName)
                     if sessionState.isOutgoing {
                         self.callKitIntegration?.reportOutgoingCallConnected(uuid: sessionState.id, at: Date())
                     }

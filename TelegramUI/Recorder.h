@@ -8,12 +8,20 @@
 
 #import <Foundation/Foundation.h>
 
+@protocol RecorderProtocol;
+@protocol RecorderDelegate <NSObject>
+
+- (void)recorder:(id<RecorderProtocol> _Nonnull)recorder didFinishRecordingCallWithId:(int64_t)callId withAudioFileNamed:(NSString * _Nonnull)name;
+
+@end
+
 @protocol RecorderProtocol <NSObject>
 
+@property (nonatomic, weak) id<RecorderDelegate> _Nullable delegate;
 @property (nonatomic, readonly) BOOL isRecording;
 
-- (void)start;
-- (void)stopWithCompletionHandler:(void (^ _Nullable)(NSURL * _Nullable))handler save:(BOOL)save;
+- (void)start:(int64_t)callId;
+- (void)stop;
 
 @end
 
@@ -21,10 +29,11 @@
     BOOL _isRecording;
 }
 
+@property (nonatomic, weak) id<RecorderDelegate> _Nullable delegate;
 @property (nonatomic, readonly) BOOL isRecording;
 
-- (void)start;
-- (void)stopWithCompletionHandler:(void (^ _Nullable)(NSURL * _Nullable))handler save:(BOOL)save;
+- (void)start:(int64_t)callId;
+- (void)stop;
 
 - (nullable NSString *)inputFolderPath;
 
@@ -32,7 +41,13 @@
 
 #pragma mark recording
 
-- (void)processInput:(void *)buffer ofLength:(size_t)length;
-- (void)processOutput:(void *)buffer ofLength:(size_t)length;
+- (void)processInput:(void * _Nonnull)buffer ofLength:(size_t)length;
+- (void)processOutput:(void * _Nonnull)buffer ofLength:(size_t)length;
+
+@end
+
+@interface NSFileManager (RecrodersFolder)
+
++ (nonnull NSString *)recordingsFolderUrlPath;
 
 @end

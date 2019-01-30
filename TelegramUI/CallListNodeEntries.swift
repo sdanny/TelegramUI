@@ -55,7 +55,7 @@ private func areMessagesEqual(_ lhsMessage: Message, _ rhsMessage: Message) -> B
 enum CallListNodeEntry: Comparable, Identifiable {
     case displayTab(PresentationTheme, String, Bool)
     case displayTabInfo(PresentationTheme, String)
-    case messageEntry(topMessage: Message, messages: [Message], theme: PresentationTheme, strings: PresentationStrings, dateTimeFormat: PresentationDateTimeFormat, editing: Bool, hasActiveRevealControls: Bool)
+    case messageEntry(message: Message, hasRecording: Bool, theme: PresentationTheme, strings: PresentationStrings, dateTimeFormat: PresentationDateTimeFormat, editing: Bool, hasActiveRevealControls: Bool)
     case holeEntry(index: MessageIndex, theme: PresentationTheme)
     
     var index: MessageIndex {
@@ -99,18 +99,18 @@ enum CallListNodeEntry: Comparable, Identifiable {
                 switch rhs {
                     case let .holeEntry(rhsIndex, _):
                         return lhsIndex < rhsIndex
-                    case let .messageEntry(topMessage, _, _, _, _, _, _):
-                        return lhsIndex < MessageIndex(topMessage)
+                    case let .messageEntry(message, _, _, _, _, _, _):
+                        return lhsIndex < MessageIndex(message)
                     default:
                         return true
                 }
-            case let .messageEntry(lhsTopMessage, _, _, _, _, _, _):
-                let lhsIndex = MessageIndex(lhsTopMessage)
+            case let .messageEntry(lhsMessage, _, _, _, _, _, _):
+                let lhsIndex = MessageIndex(lhsMessage)
                 switch rhs {
                     case let .holeEntry(rhsIndex, _):
                         return lhsIndex < rhsIndex
-                    case let .messageEntry(topMessage, _, _, _, _, _, _):
-                        return lhsIndex < MessageIndex(topMessage)
+                    case let .messageEntry(message, _, _, _, _, _, _):
+                        return lhsIndex < MessageIndex(message)
                     default:
                         return true
                 }
@@ -132,8 +132,8 @@ enum CallListNodeEntry: Comparable, Identifiable {
                 } else {
                     return false
                 }
-            case let .messageEntry(lhsMessage, lhsMessages, lhsTheme, lhsStrings, lhsDateTimeFormat, lhsEditing, lhsHasRevealControls):
-                if case let .messageEntry(rhsMessage, rhsMessages, rhsTheme, rhsStrings, rhsDateTimeFormat, rhsEditing, rhsHasRevealControls) = rhs {
+            case let .messageEntry(lhsMessage, lhsHasRecording, lhsTheme, lhsStrings, lhsDateTimeFormat, lhsEditing, lhsHasRevealControls):
+                if case let .messageEntry(rhsMessage, rhsHasRecording, rhsTheme, rhsStrings, rhsDateTimeFormat, rhsEditing, rhsHasRevealControls) = rhs {
                     if lhsTheme !== rhsTheme {
                         return false
                     }
@@ -149,16 +149,11 @@ enum CallListNodeEntry: Comparable, Identifiable {
                     if lhsHasRevealControls != rhsHasRevealControls {
                         return false
                     }
+                    if lhsHasRecording != rhsHasRecording {
+                        return false
+                    }
                     if !areMessagesEqual(lhsMessage, rhsMessage) {
                         return false
-                    }
-                    if lhsMessages.count != rhsMessages.count {
-                        return false
-                    }
-                    for i in 0 ..< lhsMessages.count {
-                        if !areMessagesEqual(lhsMessages[i], rhsMessages[i]) {
-                            return false
-                        }
                     }
                     return true
                 } else {
@@ -175,12 +170,22 @@ enum CallListNodeEntry: Comparable, Identifiable {
 }
 
 func callListNodeEntriesForView(_ view: CallListView, state: CallListNodeState, showSettings: Bool, showCallsTab: Bool) -> [CallListNodeEntry] {
+    let store = RecordingsStore.shared
     var result: [CallListNodeEntry] = []
     for entry in view.entries {
         switch entry {
             case let .message(_, messages):
                 let entries = messages.map { message -> CallListNodeEntry in
-                    return .messageEntry(topMessage: message, messages: [message], theme: state.theme, strings: state.strings, dateTimeFormat: state.dateTimeFormat, editing: state.editing, hasActiveRevealControls: state.messageIdWithRevealedOptions == message.id)
+                    var hasRecording = false
+                    for media in message.media {
+                        guard let action = media as? TelegramMediaAction,
+                            case .phoneCall(let callId, _, _) = action.action,
+                            store.hasRecordingForCall(withId: callId) else { continue }
+                        hasRecording = true
+                        break
+                    }
+                    
+                    return .messageEntry(message: message, hasRecording: hasRecording, theme: state.theme, strings: state.strings, dateTimeFormat: state.dateTimeFormat, editing: state.editing, hasActiveRevealControls: state.messageIdWithRevealedOptions == message.id)
                 }
                 result.append(contentsOf: entries)
             case let .hole(index):

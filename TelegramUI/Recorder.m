@@ -12,6 +12,7 @@
 #define kRecorderProcessQueueName "com.zuev.telegram.recorder"
 
 @interface Recorder () {
+    int64_t _callId;
     NSString *_uuid;
     AVAudioFile *_input;
     AVAudioFile *_output;
@@ -48,7 +49,8 @@
     NSArray<NSString *> *paths = [manager contentsOfDirectoryAtPath:folderPath error:nil];
     for (NSString *path in paths) {
         if (![path hasSuffix:@"put.wav"]) continue;
-        [manager removeItemAtPath:path error:nil];
+        NSString *fullPath = [folderPath stringByAppendingPathComponent:path];
+        [manager removeItemAtPath:fullPath error:nil];
     }
 }
 
@@ -63,9 +65,10 @@
 
 #pragma mark recorder protocol
 
-- (void)start {
+- (void)start:(int64_t)callId {
     if (_isRecording) return;
     _uuid = [[[NSUUID alloc] init] UUIDString];
+    _callId = callId;
     // create files for input and output
     NSError *error = nil;
     NSDictionary<NSString *, id> *settings = [self audioFormatSettings];
@@ -110,34 +113,30 @@
              AVEncoderAudioQualityKey : @(AVAudioQualityMax)};
 }
 
-- (nullable NSString *)inputFolderPath {
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-    NSString *documentsFolder = [paths firstObject];
-    return [documentsFolder stringByAppendingString:@"/records"];
+- (NSString *)inputFolderPath {
+    return [NSFileManager recordingsFolderUrlPath];
 }
 
-- (void)stopWithCompletionHandler:(void (^ _Nullable)(NSURL * _Nullable))handler save:(BOOL)save {
-    if (_isStopping) return;
-    if (!_isRecording || !save) {
-        [self removeChunksIfAny];
-        if (handler)
-            handler(nil);
-        return;
-    }
+- (void)stop {
+    if (!_isRecording || _isStopping) return;
     _isStopping = YES;
     // save the files
     _input = nil;
     _output = nil;
     // combine in a file
     dispatch_async(_processQueue, ^{
-        [self combineFilesWithCompletionHandler:^(NSURL * _Nullable url){
+        [self combineFilesWithCompletionHandler:^(NSURL * _Nullable url) {
+            int64_t callId = _callId;
             // reset state
             _isStopping = NO;
             _isRecording = NO;
             _uuid = nil;
-            // call completion handler in main queue
+            _callId = 0;
+            // call delegate method
             dispatch_async(dispatch_get_main_queue(), ^{
-                handler(url);
+                if (url && self.delegate && [self.delegate respondsToSelector:@selector(recorder:didFinishRecordingCallWithId:withAudioFileNamed:)]) {
+                    [self.delegate recorder:self didFinishRecordingCallWithId:callId withAudioFileNamed:url.lastPathComponent];
+                }
             });
         }];
     });
@@ -232,6 +231,16 @@
         if (error != nil)
             NSLog(@"Could not write buffer of size %ld into file with error: %@", length, error.localizedDescription);
     });
+}
+
+@end
+
+@implementation NSFileManager (RecrodersFolder)
+
++ (nonnull NSString *)recordingsFolderUrlPath {
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    NSString *documentsFolder = [paths firstObject];
+    return [documentsFolder stringByAppendingString:@"/records"];
 }
 
 @end

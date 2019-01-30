@@ -235,7 +235,7 @@ final class OngoingCallContext {
         }
     }
     
-    func start(key: Data, isOutgoing: Bool, connections: CallSessionConnectionSet, maxLayer: Int32, allowP2P: Bool, audioSessionActive: Signal<Bool, NoError>, logName: String) {
+    func start(id: CallId, key: Data, isOutgoing: Bool, connections: CallSessionConnectionSet, maxLayer: Int32, allowP2P: Bool, audioSessionActive: Signal<Bool, NoError>, logName: String) {
         let logPath = logName.isEmpty ? "" : callLogsPath(account: self.account) + "/" + logName + ".log"
         self.audioSessionDisposable.set((audioSessionActive
         |> filter { $0 }
@@ -243,7 +243,7 @@ final class OngoingCallContext {
             if let strongSelf = self {
                 strongSelf.withContext { context in
                     context.start(withKey: key, isOutgoing: isOutgoing, primaryConnection: callConnectionDescription(connections.primary), alternativeConnections: connections.alternatives.map(callConnectionDescription), maxLayer: maxLayer, allowP2P: allowP2P, logPath: logPath)
-                    strongSelf.recorder.start()
+                    strongSelf.recorder.start(id.id)
                 }
             }
         }))
@@ -252,10 +252,7 @@ final class OngoingCallContext {
     func stop() {
         self.withContext { context in
             context.stop()
-            self.recorder.stop(completionHandler: { (url) in
-                guard let url = url else { return }
-                print("did stop recording with result file at path: \(url.absoluteString)")
-            }, save: true)
+            self.recorder.stop()
             let derivedState = context.getDerivedState()
             let _ = updateVoipDerivedStateInteractively(postbox: self.account.postbox, { _ in
                 return VoipDerivedState(data: derivedState)

@@ -12,7 +12,7 @@ public final class TelegramRootController: NavigationController {
     public var contactsController: ContactsController?
     public var callListController: CallListController?
 //    public var chatListController: ChatListController?
-//    public var accountSettingsController: ViewController?
+    public var accountSettingsController: ViewController?
     
     private var permissionsDisposable: Disposable?
     private var presentationDataDisposable: Disposable?
@@ -64,15 +64,15 @@ public final class TelegramRootController: NavigationController {
         }
 //        controllers.append(chatListController)
         
-//        let accountSettingsController = settingsController(account: self.account, accountManager: self.account.telegramApplicationContext.accountManager)
-//        controllers.append(accountSettingsController)
+        let accountSettingsController = settingsController(account: self.account, accountManager: self.account.telegramApplicationContext.accountManager)
+        controllers.append(accountSettingsController)
         
-        tabBarController.setControllers(controllers, selectedIndex: controllers.count - 1)
+        tabBarController.setControllers(controllers, selectedIndex: controllers.count - 2)
         
         self.contactsController = contactsController
         self.callListController = callListController
 //        self.chatListController = chatListController
-//        self.accountSettingsController = accountSettingsController
+        self.accountSettingsController = accountSettingsController
         self.rootTabController = tabBarController
         self.pushViewController(tabBarController, animated: false)
     }
@@ -87,7 +87,7 @@ public final class TelegramRootController: NavigationController {
             controllers.append(self.callListController!)
         }
 //        controllers.append(self.chatListController!)
-//        controllers.append(self.accountSettingsController!)
+        controllers.append(self.accountSettingsController!)
         
         rootTabController.setControllers(controllers, selectedIndex: nil)
     }
