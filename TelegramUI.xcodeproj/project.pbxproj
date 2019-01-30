@@ -1133,25 +1133,23 @@
 		D0FE4DE61F0BA58A00E8A0B3 /* OverlayMediaItemNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FE4DE51F0BA58A00E8A0B3 /* OverlayMediaItemNode.swift */; };
 		D0FFF7F61F55B82500BEBC01 /* InstantPageAudioItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FFF7F51F55B82500BEBC01 /* InstantPageAudioItem.swift */; };
 		D0FFF7F81F55B83600BEBC01 /* InstantPageAudioNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FFF7F71F55B83600BEBC01 /* InstantPageAudioNode.swift */; };
+		F665B3AA2201C2E000A71199 /* RealmSwift.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = F665B3A82201C2E000A71199 /* RealmSwift.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		F665B3AB2201C2E000A71199 /* Realm.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = F665B3A92201C2E000A71199 /* Realm.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		F6C5EA4621FEF2AF00327D98 /* Recorder.m in Sources */ = {isa = PBXBuildFile; fileRef = F6C5EA4421FEF2AF00327D98 /* Recorder.m */; };
 		F6C5EA4721FEF2AF00327D98 /* Recorder.h in Headers */ = {isa = PBXBuildFile; fileRef = F6C5EA4521FEF2AF00327D98 /* Recorder.h */; };
 		F6C5EA4A220080F500327D98 /* RecordingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C5EA49220080F500327D98 /* RecordingsStore.swift */; };
-		F6C5EA57220082EB00327D98 /* Realm.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F6C5EA55220082EB00327D98 /* Realm.framework */; };
-		F6C5EA58220082EB00327D98 /* RealmSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F6C5EA56220082EB00327D98 /* RealmSwift.framework */; };
-		F6C5EA5A22017B1400327D98 /* Realm.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = F6C5EA55220082EB00327D98 /* Realm.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		F6C5EA5B22017B1400327D98 /* RealmSwift.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = F6C5EA56220082EB00327D98 /* RealmSwift.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		F6C5EA5D22017DC600327D98 /* DatabaseProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C5EA5C22017DC600327D98 /* DatabaseProvider.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		F6C5EA5922017B0000327D98 /* CopyFiles */ = {
+		F665B3A72201C2C800A71199 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				F6C5EA5A22017B1400327D98 /* Realm.framework in CopyFiles */,
-				F6C5EA5B22017B1400327D98 /* RealmSwift.framework in CopyFiles */,
+				F665B3AA2201C2E000A71199 /* RealmSwift.framework in CopyFiles */,
+				F665B3AB2201C2E000A71199 /* Realm.framework in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2373,11 +2371,11 @@
 		D0FE4DE51F0BA58A00E8A0B3 /* OverlayMediaItemNode.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OverlayMediaItemNode.swift; sourceTree = "<group>"; };
 		D0FFF7F51F55B82500BEBC01 /* InstantPageAudioItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstantPageAudioItem.swift; sourceTree = "<group>"; };
 		D0FFF7F71F55B83600BEBC01 /* InstantPageAudioNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstantPageAudioNode.swift; sourceTree = "<group>"; };
+		F665B3A82201C2E000A71199 /* RealmSwift.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = RealmSwift.framework; sourceTree = "<group>"; };
+		F665B3A92201C2E000A71199 /* Realm.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Realm.framework; sourceTree = "<group>"; };
 		F6C5EA4421FEF2AF00327D98 /* Recorder.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Recorder.m; sourceTree = "<group>"; };
 		F6C5EA4521FEF2AF00327D98 /* Recorder.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Recorder.h; sourceTree = "<group>"; };
 		F6C5EA49220080F500327D98 /* RecordingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingsStore.swift; sourceTree = "<group>"; };
-		F6C5EA55220082EB00327D98 /* Realm.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Realm.framework; sourceTree = "<group>"; };
-		F6C5EA56220082EB00327D98 /* RealmSwift.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = RealmSwift.framework; sourceTree = "<group>"; };
 		F6C5EA5C22017DC600327D98 /* DatabaseProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseProvider.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -2386,8 +2384,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F6C5EA57220082EB00327D98 /* Realm.framework in Frameworks */,
-				F6C5EA58220082EB00327D98 /* RealmSwift.framework in Frameworks */,
 				D05B077421BFC38600B1D27C /* FFMpeg.framework in Frameworks */,
 				D045549A21B2F173007A6DD9 /* libturbojpeg.a in Frameworks */,
 				091BEAB3214552D9003AEA30 /* Vision.framework in Frameworks */,
@@ -3470,8 +3466,8 @@
 		D08D45281D5E340200A7428A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				F6C5EA55220082EB00327D98 /* Realm.framework */,
-				F6C5EA56220082EB00327D98 /* RealmSwift.framework */,
+				F665B3A92201C2E000A71199 /* Realm.framework */,
+				F665B3A82201C2E000A71199 /* RealmSwift.framework */,
 				D05B077321BFC38600B1D27C /* FFMpeg.framework */,
 				D05B077121BFB9F600B1D27C /* FFMpeg.framework */,
 				D045549921B2F173007A6DD9 /* libturbojpeg.a */,
@@ -4991,7 +4987,7 @@
 				D0EC6CA11EB9F4CC00EBF1C3 /* Frameworks */,
 				D0EC6CA21EB9F4CC00EBF1C3 /* Headers */,
 				D0EC6CA31EB9F4CC00EBF1C3 /* Resources */,
-				F6C5EA5922017B0000327D98 /* CopyFiles */,
+				F665B3A72201C2C800A71199 /* CopyFiles */,
 			);
 			buildRules = (
 			);
