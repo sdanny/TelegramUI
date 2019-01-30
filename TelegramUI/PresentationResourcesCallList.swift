@@ -15,7 +15,7 @@ struct PresentationResourcesCallList {
     }
     
     static func playButton(_ theme: PresentationTheme) -> UIImage? {
-        return theme.image(PresentationResourceKey.callListInfoButton.rawValue, { theme in
+        return theme.image(PresentationResourceKey.callListPlayButton.rawValue, { theme in
             return generateTintedImage(image: UIImage(bundleImageName: "Call List/PlayButton"), color: theme.list.itemAccentColor)
         })
     }

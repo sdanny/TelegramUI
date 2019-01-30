@@ -39,6 +39,8 @@ public final class PresentationCallManager {
     private let callSessionManager: CallSessionManager
     private let callKitIntegration: CallKitIntegration?
     
+    private let recordingsStore: RecordingsStore = .shared
+    
     private var currentCall: PresentationCall?
     private let removeCurrentCallDisposable = MetaDisposable()
     

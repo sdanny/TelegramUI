@@ -281,7 +281,7 @@ final class CallListControllerNode: ASDisplayNode {
                 return value
             }
         
-        let callListNodeViewTransition = combineLatest(callListViewUpdate, self.statePromise.get(), showCallsTab) |> mapToQueue { (update, state, showCallsTab) -> Signal<CallListNodeListViewTransition, NoError> in
+        let callListNodeViewTransition = combineLatest(callListViewUpdate, self.statePromise.get(), showCallsTab, RecordingsStore.shared.recordings) |> mapToQueue { (update, state, showCallsTab, _) -> Signal<CallListNodeListViewTransition, NoError> in
             let processedView = CallListNodeView(originalView: update.view, filteredEntries: callListNodeEntriesForView(update.view, state: state, showSettings: showSettings, showCallsTab: showCallsTab))
             let previous = previousView.swap(processedView)
             

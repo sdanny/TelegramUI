@@ -221,4 +221,6 @@ enum PresentationResourceKey: Int32 {
     case groupInfoMembersIcon
     
     case emptyChatListCheckIcon
+    
+    case callListPlayButton
 }

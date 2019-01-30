@@ -8,6 +8,7 @@
 
 import UIKit
 import RealmSwift
+import SwiftSignalKit
 
 import TelegramUIPrivateModule
 
@@ -24,24 +25,26 @@ public class Database {
         let ascending: Bool
     }
     
-    private let realm: Realm
+    private let configuration: Realm.Configuration
     
     var isInWriteTransaction: Bool {
+        let realm = try! Realm(configuration: configuration)
         return realm.isInWriteTransaction
     }
     
     init(version: UInt64, migration: @escaping MigrationBlock) {
-        let configuration = Realm.Configuration(schemaVersion: version, migrationBlock: migration)
-        realm = try! Realm(configuration: configuration)
+        self.configuration = Realm.Configuration(schemaVersion: version, migrationBlock: migration)
     }
     
     func add(_ objects: [Object]) {
+        let realm = try! Realm(configuration: configuration)
         try! realm.write {
             realm.add(objects)
         }
     }
     
     func getObjects<O: Object>(_ type: O.Type, sorting: Sorting? = nil, filter: NSPredicate? = nil) -> [O] {
+        let realm = try! Realm(configuration: configuration)
         var objects = realm.objects(type)
         if let filter = filter {
             objects = objects.filter(filter)
@@ -53,6 +56,7 @@ public class Database {
     }
     
     func remove(_ objects: [Object]) {
+        let realm = try! Realm(configuration: configuration)
         try! realm.write {
             realm.delete(objects)
         }
@@ -64,10 +68,12 @@ public class Database {
     }
     
     func beginWrite() {
+        let realm = try! Realm(configuration: configuration)
         realm.beginWrite()
     }
     
     func commit() {
+        let realm = try! Realm(configuration: configuration)
         try! realm.commitWrite()
         realm.refresh()
     }
@@ -105,6 +111,10 @@ public class RecordingsStore: NSObject, RecordersStoreProtocol, RecorderDelegate
     }()
     
     private let database: Database
+    private let recordingsPromise = Promise<Int64?>(nil)
+    public var recordings: Signal<Int64?, NoError> {
+        return self.recordingsPromise.get()
+    }
     
     init(database: Database) {
         self.database = database
@@ -142,6 +152,8 @@ public class RecordingsStore: NSObject, RecordersStoreProtocol, RecorderDelegate
         entity.callId = callId
         entity.filename = name
         database.add([entity])
+        
+        recordingsPromise.set(.single(callId))
     }
 }
 
