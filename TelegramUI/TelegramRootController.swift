@@ -13,9 +13,12 @@ public final class TelegramRootController: NavigationController {
     public var callListController: CallListController?
 //    public var chatListController: ChatListController?
     public var accountSettingsController: ViewController?
+    public var recordingController: RecordingController?
     
     private var permissionsDisposable: Disposable?
     private var presentationDataDisposable: Disposable?
+    private var recordingsSetupDisposable: Disposable?
+    private var playRecordingDisposable: Disposable?
     private var presentationData: PresentationData
     
     public init(account: Account) {
@@ -47,12 +50,15 @@ public final class TelegramRootController: NavigationController {
     deinit {
         self.permissionsDisposable?.dispose()
         self.presentationDataDisposable?.dispose()
+        self.recordingsSetupDisposable?.dispose()
+        self.playRecordingDisposable?.dispose()
     }
     
     public func addRootControllers(showCallsTab: Bool) {
         let tabBarController = TabBarController(navigationBarPresentationData: NavigationBarPresentationData(presentationData: self.presentationData), theme: TabBarControllerTheme(rootControllerTheme: self.presentationData.theme))
 //        let chatListController = ChatListController(account: self.account, groupId: nil, controlsHistoryPreload: true)
         let callListController = CallListController(account: self.account, mode: .tab)
+        let recordingController = RecordingController(account: self.account)
         
         var controllers: [ViewController] = []
         
@@ -68,13 +74,38 @@ public final class TelegramRootController: NavigationController {
         controllers.append(accountSettingsController)
         
         tabBarController.setControllers(controllers, selectedIndex: controllers.count - 2)
+        insertRecordingSubnode(controller: recordingController, intoTabBarController: tabBarController)
         
         self.contactsController = contactsController
         self.callListController = callListController
+        self.recordingController = recordingController
 //        self.chatListController = chatListController
         self.accountSettingsController = accountSettingsController
         self.rootTabController = tabBarController
         self.pushViewController(tabBarController, animated: false)
+        
+        subscribePlayRecordings(withController: callListController)
+    }
+    
+    private func subscribePlayRecordings(withController controller: CallListController) {
+        playRecordingDisposable = callListController?.playRecordingPromise.get().start(next: { (peer, callId) in
+            self.recordingController?.update(callId: callId, peer: peer)
+            self.recordingController?.play()
+        })
+    }
+    
+    private func insertRecordingSubnode(controller: RecordingController, intoTabBarController barController: TabBarController) {
+        let readiness = combineLatest(controller.ready.get(), barController.ready.get())
+            |> filter { $0 && $1 }
+            |> take(1)
+            |> deliverOnMainQueue
+        recordingsSetupDisposable = readiness.start(next: { _, _ in
+            let node = barController.displayNode
+            let subnode = controller.controllerNode!
+            node.insertSubnode(subnode, at: 1)
+            let bounds = UIScreen.main.bounds
+            subnode.frame = CGRect(origin: .zero, size: CGSize(width: bounds.width, height: 80))
+        })
     }
     
     public func updateRootControllers(showCallsTab: Bool) {

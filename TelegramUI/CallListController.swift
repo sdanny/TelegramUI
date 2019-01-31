@@ -20,6 +20,8 @@ public final class CallListController: ViewController {
         return self._ready
     }
     
+    public var playRecordingPromise = Promise<(Peer, Int64)>()
+    
     private let account: Account
     private let mode: CallListControllerMode
     
@@ -143,8 +145,9 @@ public final class CallListController: ViewController {
             guard let self = self else { return }
             let _ = (self.account.postbox.loadedPeerWithId(peerId)
                 |> take(1)
-                |> deliverOnMainQueue).start(next: { peer in
-                    
+                |> deliverOnMainQueue).start(next: { [weak self] peer in
+                    guard let self = self else { return }
+                    self.playRecordingPromise.set(.single((peer, callId)))
                 })
         }, emptyStateUpdated: { [weak self] empty in
             if let strongSelf = self {

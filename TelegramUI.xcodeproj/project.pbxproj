@@ -1135,6 +1135,9 @@
 		D0FFF7F81F55B83600BEBC01 /* InstantPageAudioNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FFF7F71F55B83600BEBC01 /* InstantPageAudioNode.swift */; };
 		F665B3AF2201C87A00A71199 /* RealmSwift.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = F665B3AD2201C87900A71199 /* RealmSwift.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		F665B3B02201C87A00A71199 /* Realm.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = F665B3AE2201C87A00A71199 /* Realm.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		F665B3B42202C9C700A71199 /* RecordingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F665B3B32202C9C700A71199 /* RecordingController.swift */; };
+		F665B3B62202D46F00A71199 /* RecordingControllerNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = F665B3B52202D46F00A71199 /* RecordingControllerNode.swift */; };
+		F665B3B82202E77400A71199 /* RecordingNodeInteraction.swift in Sources */ = {isa = PBXBuildFile; fileRef = F665B3B72202E77400A71199 /* RecordingNodeInteraction.swift */; };
 		F6C5EA4621FEF2AF00327D98 /* Recorder.m in Sources */ = {isa = PBXBuildFile; fileRef = F6C5EA4421FEF2AF00327D98 /* Recorder.m */; };
 		F6C5EA4721FEF2AF00327D98 /* Recorder.h in Headers */ = {isa = PBXBuildFile; fileRef = F6C5EA4521FEF2AF00327D98 /* Recorder.h */; };
 		F6C5EA4A220080F500327D98 /* RecordingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C5EA49220080F500327D98 /* RecordingsStore.swift */; };
@@ -2373,6 +2376,9 @@
 		D0FFF7F71F55B83600BEBC01 /* InstantPageAudioNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstantPageAudioNode.swift; sourceTree = "<group>"; };
 		F665B3AD2201C87900A71199 /* RealmSwift.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = RealmSwift.framework; sourceTree = "<group>"; };
 		F665B3AE2201C87A00A71199 /* Realm.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Realm.framework; sourceTree = "<group>"; };
+		F665B3B32202C9C700A71199 /* RecordingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingController.swift; sourceTree = "<group>"; };
+		F665B3B52202D46F00A71199 /* RecordingControllerNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingControllerNode.swift; sourceTree = "<group>"; };
+		F665B3B72202E77400A71199 /* RecordingNodeInteraction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingNodeInteraction.swift; sourceTree = "<group>"; };
 		F6C5EA4421FEF2AF00327D98 /* Recorder.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Recorder.m; sourceTree = "<group>"; };
 		F6C5EA4521FEF2AF00327D98 /* Recorder.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Recorder.h; sourceTree = "<group>"; };
 		F6C5EA49220080F500327D98 /* RecordingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingsStore.swift; sourceTree = "<group>"; };
@@ -4395,6 +4401,7 @@
 		D0F69DE61D6B8A4E0046BCD6 /* Controllers */ = {
 			isa = PBXGroup;
 			children = (
+				F665B3B22202C9AB00A71199 /* Recording */,
 				D0F69DE71D6B8A590046BCD6 /* Authorization */,
 				D05174C11EAE582A00A1BF36 /* Root */,
 				D0F69DF61D6B8A720046BCD6 /* Chat List */,
@@ -4912,6 +4919,16 @@
 			path = TelegramUITests;
 			sourceTree = "<group>";
 		};
+		F665B3B22202C9AB00A71199 /* Recording */ = {
+			isa = PBXGroup;
+			children = (
+				F665B3B32202C9C700A71199 /* RecordingController.swift */,
+				F665B3B52202D46F00A71199 /* RecordingControllerNode.swift */,
+				F665B3B72202E77400A71199 /* RecordingNodeInteraction.swift */,
+			);
+			name = Recording;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXHeadersBuildPhase section */
@@ -5188,6 +5205,7 @@
 				D04281F6200E5AC2009DDE36 /* ChatRecentActionsControllerNode.swift in Sources */,
 				D0EC6CB61EB9F58800EBF1C3 /* RMGeometry.m in Sources */,
 				0941A9A0210B057200EBE194 /* OpenInActionSheetController.swift in Sources */,
+				F665B3B42202C9C700A71199 /* RecordingController.swift in Sources */,
 				D079FCDD1F05C4F20038FADE /* LocalAuth.swift in Sources */,
 				09DD5D5221ED175300D7007A /* WallpaperColorPickerNode.swift in Sources */,
 				D0B2F76820528E3D00D3BFB9 /* UserInfoEditingPhoneActionItem.swift in Sources */,
@@ -5278,6 +5296,7 @@
 				D0471B641EFEB5CB0074D609 /* BotPaymentItemNode.swift in Sources */,
 				D0380DB8204EE0A5000414AB /* ChatInstantVideoMessageDurationNode.swift in Sources */,
 				D0EC6CDC1EB9F58800EBF1C3 /* TelegramAccountAuxiliaryMethods.swift in Sources */,
+				F665B3B82202E77400A71199 /* RecordingNodeInteraction.swift in Sources */,
 				D01BAA1A1ECC8E0D00295217 /* CallListControllerNode.swift in Sources */,
 				D0EC6CDD1EB9F58800EBF1C3 /* PresentationCallManager.swift in Sources */,
 				D0A8BBA11F61EE83000F03FD /* UniversalVideoGalleryItem.swift in Sources */,
@@ -5559,6 +5578,7 @@
 				D00BED201F73F60F00922292 /* ShareSearchContainerNode.swift in Sources */,
 				D0CE8CEC1F6FCCA300AA2DB0 /* TransformImageArguments.swift in Sources */,
 				D0EC6D661EB9F58800EBF1C3 /* ContactsSectionHeaderAccessoryItem.swift in Sources */,
+				F665B3B62202D46F00A71199 /* RecordingControllerNode.swift in Sources */,
 				D0EC6D671EB9F58800EBF1C3 /* ContactListNameIndexHeader.swift in Sources */,
 				F6C5EA5D22017DC600327D98 /* DatabaseProvider.swift in Sources */,
 				D0CE6F6E213EDF8800BCD44B /* SecureIdAuthPasswordSetupContentNode.swift in Sources */,
