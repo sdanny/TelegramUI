@@ -10,15 +10,13 @@ import UIKit
 
 class RecordingNodeInteraction {
     
-    let play: () -> Void
-    let pause: () -> Void
+    let switchPlayingState: () -> Void
     let stop: () -> Void
     let seek: (Double) -> Void
     
-    init(play: @escaping () -> Void, pause: @escaping () -> Void, stop: @escaping () -> Void,
+    init(switchPlayingState: @escaping () -> Void, stop: @escaping () -> Void,
          seek: @escaping (Double) -> Void) {
-        self.play = play
-        self.pause = pause
+        self.switchPlayingState = switchPlayingState
         self.stop = stop
         self.seek = seek
     }

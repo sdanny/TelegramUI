@@ -88,9 +88,14 @@ public final class TelegramRootController: NavigationController {
     }
     
     private func subscribePlayRecordings(withController controller: CallListController) {
-        playRecordingDisposable = callListController?.playRecordingPromise.get().start(next: { (peer, callId) in
-            self.recordingController?.update(callId: callId, peer: peer)
-            self.recordingController?.play()
+        playRecordingDisposable = callListController?.playRecordingPromise.get().start(next: { [weak self] (peer, callId) in
+            guard let self = self,
+                let rootController = self.rootTabController,
+                let recordingController = self.recordingController else { return }
+            let width = rootController.displayNode.bounds.width
+            recordingController.controllerNode.contentSize = CGSize(width: width, height: 64)
+            recordingController.update(callId: callId, peer: peer)
+            recordingController.play()
         })
     }
     
@@ -104,7 +109,8 @@ public final class TelegramRootController: NavigationController {
             let subnode = controller.controllerNode!
             node.insertSubnode(subnode, at: 1)
             let bounds = UIScreen.main.bounds
-            subnode.frame = CGRect(origin: .zero, size: CGSize(width: bounds.width, height: 80))
+            let height: CGFloat = 64
+            subnode.frame = CGRect(origin: CGPoint(x: 0, y: bounds.height - 50 - height), size: CGSize(width: bounds.width, height: height))
         })
     }
     

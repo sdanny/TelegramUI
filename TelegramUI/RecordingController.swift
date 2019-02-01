@@ -42,7 +42,7 @@ public class RecordingController {
         self.account = account
         self.presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
         
-        let interaction = RecordingNodeInteraction(play: play, pause: pause, stop: stop, seek: seek)
+        let interaction = RecordingNodeInteraction(switchPlayingState: switchPlayingState, stop: stop, seek: seek)
         self.controllerNode = RecordingControllerNode(account: account, presentationData: presentationData, interaction: interaction)
         self._ready.set(.single(true))
     }
@@ -58,28 +58,42 @@ public class RecordingController {
         guard let url = store.recordingUrlForCall(withId: callId),
             let player = try? AVAudioPlayer(contentsOf: url) else { return }
         self.player = player
-        self.timer = SwiftSignalKit.Timer(timeout: 1, repeat: true, completion: timerDidFire, queue: .mainQueue())
+        self.timer = SwiftSignalKit.Timer(timeout: 0.1, repeat: true, completion: timerDidFire, queue: .mainQueue())
     }
     
     private func timerDidFire() {
         updatePlayerStatus()
     }
     
+    public func switchPlayingState() -> Void {
+        guard let player = player else { return }
+        let isPlaying = player.isPlaying
+        if isPlaying {
+            pause()
+        } else {
+            play()
+        }
+    }
+    
     public func play() {
+        controllerNode.isHidden = false
         player?.play()
         updatePlayerStatus()
         timer?.start()
+        controllerNode.isPlaying = true
     }
     
     public func pause() {
         player?.pause()
         updatePlayerStatus()
+        controllerNode.isPlaying = false
     }
     
     public func stop() {
         player?.stop()
         updatePlayerStatus()
         timer?.invalidate()
+        controllerNode.isHidden = true
     }
     
     public func seek(_ value: Double) {

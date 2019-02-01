@@ -13,6 +13,7 @@ import Postbox
 import SwiftSignalKit
 
 private let avatarFont: UIFont = UIFont(name: ".SFCompactRounded-Semibold", size: 16.0)!
+private let titleFont = Font.regular(17.0)
 
 class RecordingControllerNode: ASDisplayNode {
     
@@ -23,18 +24,27 @@ class RecordingControllerNode: ASDisplayNode {
     private var params: (peer: Peer, playerStatus: Signal<MediaPlayerStatus, NoError>)?
     var contentSize: CGSize? {
         didSet {
-            setNeedsDisplay()
+            setNeedsLayout()
         }
     }
-    
-    private let playbackStatus = Promise<MediaPlayerStatus>()
-    private let isPlaying = Promise<Bool>(false)
     
     private let backgroundNode: ASDisplayNode
     private let topStripeNode: ASDisplayNode
     private let avatarNode: AvatarNode
+    private let titleNode: TextNode
     private let timeNode: TextNode
     private let progressNode: MediaPlayerScrubbingNode
+    private let playButtonNode: HighlightableButtonNode
+    private let stopButtonNode: HighlightableButtonNode
+    
+    private var timeDisposable: Disposable?
+    
+    var isPlaying: Bool = false {
+        didSet {
+            let icon = !isPlaying ? PresentationResourcesCallList.playButton(self.theme) : PresentationResourcesRootController.navigationPlayerPauseIcon(self.theme)
+            playButtonNode.setImage(icon, for: .normal)
+        }
+    }
     
     init(account: Account, presentationData: PresentationData, interaction: RecordingNodeInteraction) {
         self.account = account
@@ -49,39 +59,134 @@ class RecordingControllerNode: ASDisplayNode {
         topStripeNode.isLayerBacked = true
         
         avatarNode = AvatarNode(font: avatarFont)
-        
+        titleNode = TextNode()
         timeNode = TextNode()
         
-        progressNode = MediaPlayerScrubbingNode(content: .standard(lineHeight: 2.0, lineCap: .round, scrubberHandle: .none, backgroundColor: .clear, foregroundColor: self.theme.rootController.navigationBar.accentTextColor))
+        progressNode = MediaPlayerScrubbingNode(content: .standard(lineHeight: 4.0, lineCap: .round, scrubberHandle: .none, backgroundColor: .clear, foregroundColor: self.theme.rootController.navigationBar.accentTextColor))
         progressNode.hitTestSlop = UIEdgeInsetsMake(-10.0, 0.0, -10.0, 0.0)
         progressNode.seek = interaction.seek
         
+        playButtonNode = HighlightableButtonNode()
+        playButtonNode.hitTestSlop = UIEdgeInsets(top: -6.0, left: -6.0, bottom: -6.0, right: -10.0)
+        let playIcon = PresentationResourcesCallList.playButton(self.theme)
+        playButtonNode.setImage(playIcon, for: .normal)
+        
+        stopButtonNode = HighlightableButtonNode()
+        let closeIcon = PresentationResourcesRootController.navigationPlayerCloseButton(self.theme)
+        stopButtonNode.setImage(closeIcon, for: .normal)
+        stopButtonNode.hitTestSlop = UIEdgeInsets(top: -6.0, left: -6.0, bottom: -6.0, right: -10.0)
+        
         super.init()
+        
+        stopButtonNode.addTarget(self, action: #selector(stop(_:)), forControlEvents: .touchUpInside)
+        playButtonNode.addTarget(self, action: #selector(playPause(_:)), forControlEvents: .touchUpInside)
         
         addSubnode(backgroundNode)
         addSubnode(avatarNode)
+        addSubnode(titleNode)
         addSubnode(timeNode)
         addSubnode(progressNode)
         addSubnode(topStripeNode)
+        addSubnode(playButtonNode)
+        addSubnode(stopButtonNode)
+    }
+    
+    deinit {
+        timeDisposable?.dispose()
     }
     
     public func update(peer: Peer, playerStatus: Signal<MediaPlayerStatus, NoError>) {
         self.params = (peer, playerStatus)
-        setNeedsDisplay()
+        setNeedsLayout()
     }
     
     override func layout() {
         guard let params = params,
             let contentSize = contentSize else { return }
-        backgroundNode.backgroundColor = UIColor.white.withAlphaComponent(0.7)
+        backgroundNode.backgroundColor = UIColor.white.withAlphaComponent(0.9)
         backgroundNode.frame = CGRect(origin: .zero, size: contentSize)
         
         topStripeNode.backgroundColor = .lightGray
         topStripeNode.frame = CGRect(origin: .zero, size: CGSize(width: contentSize.width, height: 1))
         
-        avatarNode.frame = CGRect(origin: CGPoint(x: 16, y: 5.0), size: CGSize(width: 40.0, height: 40.0))
+        let makeTitleLayout = TextNode.asyncLayout(titleNode)
+        
+        let sideInset: CGFloat = 12
+        let avatarSize: CGFloat = 40
+        avatarNode.frame = CGRect(origin: CGPoint(x: sideInset, y: 5.0), size: CGSize(width: avatarSize, height: avatarSize))
         avatarNode.setPeer(account: account, peer: params.peer)
         
+        let titleSize = CGSize(width: contentSize.width - sideInset * 3 - avatarSize, height: 20)
+        titleNode.frame = CGRect(origin: CGPoint(x: sideInset * 2 + avatarSize, y: sideInset), size: titleSize)
+        timeNode.frame = CGRect(origin: CGPoint(x: sideInset * 2 + avatarSize, y: sideInset + avatarSize - 20), size: titleSize)
+        
         progressNode.status = params.playerStatus
+        progressNode.frame = CGRect(origin: CGPoint(x: sideInset, y: contentSize.height - sideInset - 6), size: CGSize(width: contentSize.width, height: 20))
+        
+        let buttonSize = CGSize(width: 20, height: 20)
+        stopButtonNode.frame = CGRect(origin: CGPoint(x: contentSize.width - sideInset - buttonSize.width, y: sideInset), size: buttonSize)
+        playButtonNode.frame = CGRect(origin: CGPoint(x: contentSize.width - (sideInset * 3) - buttonSize.width, y: sideInset), size: buttonSize)
+        
+        let titleColor = self.theme.list.itemPrimaryTextColor
+        var titleAttributedString: NSAttributedString?
+        if let user = params.peer as? TelegramUser {
+            if let firstName = user.firstName, let lastName = user.lastName, !firstName.isEmpty, !lastName.isEmpty {
+                let string = NSMutableAttributedString()
+                string.append(NSAttributedString(string: firstName, font: titleFont, textColor: titleColor))
+                string.append(NSAttributedString(string: " ", font: titleFont, textColor: titleColor))
+                string.append(NSAttributedString(string: lastName, font: titleFont, textColor: titleColor))
+                titleAttributedString = string
+            } else if let firstName = user.firstName, !firstName.isEmpty {
+                titleAttributedString = NSAttributedString(string: firstName, font: titleFont, textColor: titleColor)
+            } else if let lastName = user.lastName, !lastName.isEmpty {
+                titleAttributedString = NSAttributedString(string: lastName, font: titleFont, textColor: titleColor)
+            } else {
+                titleAttributedString = NSAttributedString(string: presentationData.strings.User_DeletedAccount, font: titleFont, textColor: titleColor)
+            }
+        }
+        let (_, titleApply) = makeTitleLayout(TextNodeLayoutArguments(attributedString: titleAttributedString, backgroundColor: nil, maximumNumberOfLines: 1, truncationType: .end, constrainedSize: titleSize, alignment: .natural, lineSpacing: 0, cutout: nil, insets: .zero))
+        let _ = titleApply()
+        
+        timeDisposable = params.playerStatus.start(next: { status in
+            let timestamp = status.timestamp
+            var string = ""
+            let hours = Int(floor(timestamp / 1.hours))
+            if hours > 1 {
+                string = "\(hours):"
+            }
+            let minutes = timestamp.truncatingRemainder(dividingBy: 1.hours) / 1.minutes
+            let seconds = timestamp.truncatingRemainder(dividingBy: 1.minutes)
+            let minutesString = String(format: "%02d", Int(floor(minutes)))
+            let secondsString = String(format: "%02d", Int(floor(seconds)))
+            string += "\(minutesString):\(secondsString)"
+            let title = NSAttributedString(string: string, attributes: [.font : titleFont,
+                                                                        .foregroundColor: UIColor.lightGray])
+            let makeTimeLayout = TextNode.asyncLayout(self.timeNode)
+            let (_, apply) = makeTimeLayout(TextNodeLayoutArguments(attributedString: title, backgroundColor: nil, maximumNumberOfLines: 1, truncationType: .end, constrainedSize: titleSize, alignment: .natural, lineSpacing: 0, cutout: nil, insets: .zero))
+            let _ = apply()
+        })
+    }
+    
+    // MARK: actions
+    @objc func playPause(_ sender: Any) {
+        interaction.switchPlayingState()
+    }
+    
+    @objc func stop(_ sender: Any) {
+        interaction.stop()
+    }
+}
+
+extension Int {
+    var seconds: TimeInterval {
+        return TimeInterval(self)
+    }
+    
+    var minutes: TimeInterval {
+        return seconds * 60
+    }
+    
+    var hours: TimeInterval {
+        return minutes * 60
     }
 }
