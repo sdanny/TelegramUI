@@ -14,6 +14,7 @@ import SwiftSignalKit
 
 private let avatarFont: UIFont = UIFont(name: ".SFCompactRounded-Semibold", size: 16.0)!
 private let titleFont = Font.regular(17.0)
+private let timeFont = Font.regular(14.0)
 
 class RecordingControllerNode: ASDisplayNode {
     
@@ -117,15 +118,15 @@ class RecordingControllerNode: ASDisplayNode {
         avatarNode.setPeer(account: account, peer: params.peer)
         
         let titleSize = CGSize(width: contentSize.width - sideInset * 3 - avatarSize, height: 20)
-        titleNode.frame = CGRect(origin: CGPoint(x: sideInset * 2 + avatarSize, y: sideInset), size: titleSize)
-        timeNode.frame = CGRect(origin: CGPoint(x: sideInset * 2 + avatarSize, y: sideInset + avatarSize - 20), size: titleSize)
+        titleNode.frame = CGRect(origin: CGPoint(x: sideInset * 2 + avatarSize, y: 4), size: titleSize)
+        timeNode.frame = CGRect(origin: CGPoint(x: sideInset * 2 + avatarSize, y: avatarSize - 20 + 4), size: titleSize)
         
         progressNode.status = params.playerStatus
-        progressNode.frame = CGRect(origin: CGPoint(x: sideInset, y: contentSize.height - sideInset - 6), size: CGSize(width: contentSize.width, height: 20))
+        progressNode.frame = CGRect(origin: CGPoint(x: sideInset, y: contentSize.height - sideInset - 6), size: CGSize(width: contentSize.width - sideInset * 2, height: 20))
         
         let buttonSize = CGSize(width: 20, height: 20)
-        stopButtonNode.frame = CGRect(origin: CGPoint(x: contentSize.width - sideInset - buttonSize.width, y: sideInset), size: buttonSize)
-        playButtonNode.frame = CGRect(origin: CGPoint(x: contentSize.width - (sideInset * 3) - buttonSize.width, y: sideInset), size: buttonSize)
+        stopButtonNode.frame = CGRect(origin: CGPoint(x: contentSize.width - sideInset - buttonSize.width, y: 4), size: buttonSize)
+        playButtonNode.frame = CGRect(origin: CGPoint(x: contentSize.width - (sideInset * 3) - buttonSize.width, y: 4), size: buttonSize)
         
         let titleColor = self.theme.list.itemPrimaryTextColor
         var titleAttributedString: NSAttributedString?
@@ -159,7 +160,7 @@ class RecordingControllerNode: ASDisplayNode {
             let minutesString = String(format: "%02d", Int(floor(minutes)))
             let secondsString = String(format: "%02d", Int(floor(seconds)))
             string += "\(minutesString):\(secondsString)"
-            let title = NSAttributedString(string: string, attributes: [.font : titleFont,
+            let title = NSAttributedString(string: string, attributes: [.font : timeFont,
                                                                         .foregroundColor: UIColor.lightGray])
             let makeTimeLayout = TextNode.asyncLayout(self.timeNode)
             let (_, apply) = makeTimeLayout(TextNodeLayoutArguments(attributedString: title, backgroundColor: nil, maximumNumberOfLines: 1, truncationType: .end, constrainedSize: titleSize, alignment: .natural, lineSpacing: 0, cutout: nil, insets: .zero))

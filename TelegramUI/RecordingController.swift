@@ -13,7 +13,7 @@ import TelegramCore
 import SwiftSignalKit
 import AVFoundation
 
-public class RecordingController {
+public class RecordingController: NSObject, AVAudioPlayerDelegate {
     
     private(set) var controllerNode: RecordingControllerNode!
     
@@ -42,6 +42,8 @@ public class RecordingController {
         self.account = account
         self.presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
         
+        super.init()
+        
         let interaction = RecordingNodeInteraction(switchPlayingState: switchPlayingState, stop: stop, seek: seek)
         self.controllerNode = RecordingControllerNode(account: account, presentationData: presentationData, interaction: interaction)
         self._ready.set(.single(true))
@@ -57,6 +59,7 @@ public class RecordingController {
         
         guard let url = store.recordingUrlForCall(withId: callId),
             let player = try? AVAudioPlayer(contentsOf: url) else { return }
+        player.delegate = self
         self.player = player
         self.timer = SwiftSignalKit.Timer(timeout: 0.1, repeat: true, completion: timerDidFire, queue: .mainQueue())
     }
@@ -92,6 +95,13 @@ public class RecordingController {
     public func stop() {
         player?.stop()
         updatePlayerStatus()
+        reset()
+    }
+    
+    private func reset() {
+        player = nil
+        callId = nil
+        peer = nil
         timer?.invalidate()
         controllerNode.isHidden = true
     }
@@ -109,6 +119,11 @@ public class RecordingController {
         let isPlaying: MediaPlayerPlaybackStatus = player.isPlaying ? .playing : .paused
         let status = MediaPlayerStatus(generationTimestamp: 0, duration: player.duration, dimensions: .zero, timestamp: timestamp, baseRate: 1.0, seekId: 0, status: isPlaying)
         playerStatusPromise.set(.single(status))
+    }
+    
+    // MARK: player delegate
+    public func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        reset()
     }
 
 }
