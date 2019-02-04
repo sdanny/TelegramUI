@@ -1133,8 +1133,6 @@
 		D0FE4DE61F0BA58A00E8A0B3 /* OverlayMediaItemNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FE4DE51F0BA58A00E8A0B3 /* OverlayMediaItemNode.swift */; };
 		D0FFF7F61F55B82500BEBC01 /* InstantPageAudioItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FFF7F51F55B82500BEBC01 /* InstantPageAudioItem.swift */; };
 		D0FFF7F81F55B83600BEBC01 /* InstantPageAudioNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FFF7F71F55B83600BEBC01 /* InstantPageAudioNode.swift */; };
-		F665B3AF2201C87A00A71199 /* RealmSwift.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = F665B3AD2201C87900A71199 /* RealmSwift.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		F665B3B02201C87A00A71199 /* Realm.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = F665B3AE2201C87A00A71199 /* Realm.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		F665B3B42202C9C700A71199 /* RecordingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F665B3B32202C9C700A71199 /* RecordingController.swift */; };
 		F665B3B62202D46F00A71199 /* RecordingControllerNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = F665B3B52202D46F00A71199 /* RecordingControllerNode.swift */; };
 		F665B3B82202E77400A71199 /* RecordingNodeInteraction.swift in Sources */ = {isa = PBXBuildFile; fileRef = F665B3B72202E77400A71199 /* RecordingNodeInteraction.swift */; };
@@ -1142,21 +1140,9 @@
 		F6C5EA4721FEF2AF00327D98 /* Recorder.h in Headers */ = {isa = PBXBuildFile; fileRef = F6C5EA4521FEF2AF00327D98 /* Recorder.h */; };
 		F6C5EA4A220080F500327D98 /* RecordingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C5EA49220080F500327D98 /* RecordingsStore.swift */; };
 		F6C5EA5D22017DC600327D98 /* DatabaseProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C5EA5C22017DC600327D98 /* DatabaseProvider.swift */; };
+		F6D92E2D2208E6BE00E3D8C5 /* Realm.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F665B3AE2201C87A00A71199 /* Realm.framework */; };
+		F6D92E2E2208E6BE00E3D8C5 /* RealmSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F665B3AD2201C87900A71199 /* RealmSwift.framework */; };
 /* End PBXBuildFile section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		F665B3AC2201C86300A71199 /* CopyFiles */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 10;
-			files = (
-				F665B3AF2201C87A00A71199 /* RealmSwift.framework in CopyFiles */,
-				F665B3B02201C87A00A71199 /* Realm.framework in CopyFiles */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		0900678C21ED5EA800530762 /* WallpaperColorPanelNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WallpaperColorPanelNode.swift; sourceTree = "<group>"; };
@@ -2390,6 +2376,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F6D92E2D2208E6BE00E3D8C5 /* Realm.framework in Frameworks */,
+				F6D92E2E2208E6BE00E3D8C5 /* RealmSwift.framework in Frameworks */,
 				D05B077421BFC38600B1D27C /* FFMpeg.framework in Frameworks */,
 				D045549A21B2F173007A6DD9 /* libturbojpeg.a in Frameworks */,
 				091BEAB3214552D9003AEA30 /* Vision.framework in Frameworks */,
@@ -5004,8 +4992,6 @@
 				D0EC6CA11EB9F4CC00EBF1C3 /* Frameworks */,
 				D0EC6CA21EB9F4CC00EBF1C3 /* Headers */,
 				D0EC6CA31EB9F4CC00EBF1C3 /* Resources */,
-				F665B3AC2201C86300A71199 /* CopyFiles */,
-				F665B3B12201C8AE00A71199 /* ShellScript */,
 			);
 			buildRules = (
 			);
@@ -5045,7 +5031,6 @@
 				TargetAttributes = {
 					D0EC6CA41EB9F4CC00EBF1C3 = {
 						CreatedOnToolsVersion = 8.3.2;
-						DevelopmentTeam = X834Q8SBVP;
 						ProvisioningStyle = Manual;
 					};
 					D0FC40871D5B8E7500261D9D = {
@@ -5158,26 +5143,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		F665B3B12201C8AE00A71199 /* ShellScript */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\nbash \"${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}/Realm.framework/strip-frameworks.sh\"\n";
-		};
-/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		D0EC6CA01EB9F4CC00EBF1C3 /* Sources */ = {
@@ -6269,7 +6234,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
-				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";
+				CODE_SIGN_IDENTITY = "iPhone Developer: Zuev Sergey (6R532L2PWW)";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer: Zuev Sergey (6R532L2PWW)";
 				COPY_PHASE_STRIP = NO;
 				DEVELOPMENT_TEAM = "";
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
