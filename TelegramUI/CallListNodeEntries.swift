@@ -175,7 +175,7 @@ func callListNodeEntriesForView(_ view: CallListView, state: CallListNodeState, 
     for entry in view.entries {
         switch entry {
             case let .message(_, messages):
-                let entries = messages.map { message -> CallListNodeEntry in
+                let entries = messages.compactMap { message -> CallListNodeEntry? in
                     var hasRecording = false
                     for media in message.media {
                         guard let action = media as? TelegramMediaAction,
@@ -184,7 +184,7 @@ func callListNodeEntriesForView(_ view: CallListView, state: CallListNodeState, 
                         hasRecording = true
                         break
                     }
-                    
+                    guard hasRecording else { return nil }
                     return .messageEntry(message: message, hasRecording: hasRecording, theme: state.theme, strings: state.strings, dateTimeFormat: state.dateTimeFormat, editing: state.editing, hasActiveRevealControls: state.messageIdWithRevealedOptions == message.id)
                 }
                 result.append(contentsOf: entries)

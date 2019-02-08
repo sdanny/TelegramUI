@@ -58,7 +58,7 @@ public final class CallListController: ViewController {
                 icon = UIImage(bundleImageName: "Chat List/Tabs/IconCalls")
             }
             
-            self.tabBarItem.title = self.presentationData.strings.Calls_TabTitle
+            self.tabBarItem.title = "Records"//self.presentationData.strings.Calls_TabTitle
             self.tabBarItem.image = icon
             self.tabBarItem.selectedImage = icon
         }
@@ -106,7 +106,7 @@ public final class CallListController: ViewController {
         self.segmentedTitleView.color = self.presentationData.theme.rootController.navigationBar.accentTextColor
         self.segmentedTitleView.index = index
             
-        self.tabBarItem.title = self.presentationData.strings.Calls_TabTitle
+        self.tabBarItem.title = "Records" //self.presentationData.strings.Calls_TabTitle
         self.navigationItem.backBarButtonItem = UIBarButtonItem(title: self.presentationData.strings.Common_Back, style: .plain, target: nil, action: nil)
         switch self.mode {
             case .tab:

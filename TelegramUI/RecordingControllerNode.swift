@@ -63,9 +63,12 @@ class RecordingControllerNode: ASDisplayNode {
         titleNode = TextNode()
         timeNode = TextNode()
         
-        progressNode = MediaPlayerScrubbingNode(content: .standard(lineHeight: 4.0, lineCap: .round, scrubberHandle: .none, backgroundColor: .clear, foregroundColor: self.theme.rootController.navigationBar.accentTextColor))
+        let foregroundColor = self.theme.rootController.navigationBar.accentTextColor
+        
+        progressNode = MediaPlayerScrubbingNode(content: .standard(lineHeight: 4.0, lineCap: .round, scrubberHandle: .circle, backgroundColor: .clear, foregroundColor: foregroundColor))
         progressNode.hitTestSlop = UIEdgeInsetsMake(-10.0, 0.0, -10.0, 0.0)
         progressNode.seek = interaction.seek
+        progressNode.enableScrubbing = true
         
         playButtonNode = HighlightableButtonNode()
         playButtonNode.hitTestSlop = UIEdgeInsets(top: -6.0, left: -6.0, bottom: -6.0, right: -10.0)

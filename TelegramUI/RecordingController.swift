@@ -33,6 +33,8 @@ public class RecordingController: NSObject, AVAudioPlayerDelegate {
     private var player: AVAudioPlayer?
     private var timer: SwiftSignalKit.Timer?
     private let store: RecordingsStore = .shared
+    
+    private var seekId = 0
 
     required public init(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
@@ -108,8 +110,8 @@ public class RecordingController: NSObject, AVAudioPlayerDelegate {
     
     public func seek(_ value: Double) {
         guard let player = player else { return }
-        let interval = player.duration * value
-        player.play(atTime: interval)
+        seekId += 1
+        player.currentTime = value
         updatePlayerStatus()
     }
     
@@ -117,7 +119,7 @@ public class RecordingController: NSObject, AVAudioPlayerDelegate {
         guard let player = player else { return }
         let timestamp = player.currentTime
         let isPlaying: MediaPlayerPlaybackStatus = player.isPlaying ? .playing : .paused
-        let status = MediaPlayerStatus(generationTimestamp: 0, duration: player.duration, dimensions: .zero, timestamp: timestamp, baseRate: 1.0, seekId: 0, status: isPlaying)
+        let status = MediaPlayerStatus(generationTimestamp: 0, duration: player.duration, dimensions: .zero, timestamp: timestamp, baseRate: 1.0, seekId: seekId, status: isPlaying)
         playerStatusPromise.set(.single(status))
     }
     

@@ -107,7 +107,7 @@ public final class TelegramRootController: NavigationController {
         recordingsSetupDisposable = readiness.start(next: { _, _ in
             let node = barController.displayNode
             let subnode = controller.controllerNode!
-            node.insertSubnode(subnode, at: 1)
+            node.addSubnode(subnode)
             let bounds = UIScreen.main.bounds
             let height: CGFloat = 64
             subnode.frame = CGRect(origin: CGPoint(x: 0, y: bounds.height - 50 - height), size: CGSize(width: bounds.width, height: height))
