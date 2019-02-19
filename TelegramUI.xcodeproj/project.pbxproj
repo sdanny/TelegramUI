@@ -4992,6 +4992,7 @@
 				D0EC6CA11EB9F4CC00EBF1C3 /* Frameworks */,
 				D0EC6CA21EB9F4CC00EBF1C3 /* Headers */,
 				D0EC6CA31EB9F4CC00EBF1C3 /* Resources */,
+				F69CC0CE221C138400FD42F3 /* ShellScript */,
 			);
 			buildRules = (
 			);
@@ -5143,6 +5144,26 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		F69CC0CE221C138400FD42F3 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\nbash \"${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}/Realm.framework/strip-frameworks.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		D0EC6CA01EB9F4CC00EBF1C3 /* Sources */ = {
