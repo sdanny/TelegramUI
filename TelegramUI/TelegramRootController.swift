@@ -65,9 +65,7 @@ public final class TelegramRootController: NavigationController {
         let contactsController = ContactsController(account: self.account)
         controllers.append(contactsController)
         
-        if showCallsTab {
-            controllers.append(callListController)
-        }
+        controllers.append(callListController)
 //        controllers.append(chatListController)
         
         let accountSettingsController = settingsController(account: self.account, accountManager: self.account.telegramApplicationContext.accountManager)
@@ -120,9 +118,7 @@ public final class TelegramRootController: NavigationController {
         }
         var controllers: [ViewController] = []
         controllers.append(self.contactsController!)
-        if showCallsTab {
-            controllers.append(self.callListController!)
-        }
+        controllers.append(self.callListController!)
 //        controllers.append(self.chatListController!)
         controllers.append(self.accountSettingsController!)
         
