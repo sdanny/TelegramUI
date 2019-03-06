@@ -55,6 +55,7 @@ class RecordingControllerNode: ASDisplayNode {
         
         backgroundNode = ASDisplayNode()
         backgroundNode.isLayerBacked = true
+        backgroundNode.backgroundColor = self.theme.chatList.backgroundColor
         
         topStripeNode = ASDisplayNode()
         topStripeNode.isLayerBacked = true
@@ -107,7 +108,6 @@ class RecordingControllerNode: ASDisplayNode {
     override func layout() {
         guard let params = params,
             let contentSize = contentSize else { return }
-        backgroundNode.backgroundColor = UIColor.white.withAlphaComponent(0.9)
         backgroundNode.frame = CGRect(origin: .zero, size: contentSize)
         
         topStripeNode.backgroundColor = .lightGray

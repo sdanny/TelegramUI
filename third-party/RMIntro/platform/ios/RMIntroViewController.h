@@ -57,6 +57,7 @@
 - (instancetype)initWithBackroundColor:(UIColor *)backgroundColor primaryColor:(UIColor *)primaryColor buttonColor:(UIColor *)buttonColor accentColor:(UIColor *)accentColor regularDotColor:(UIColor *)regularDotColor highlightedDotColor:(UIColor *)highlightedDotColor suggestedLocalizationSignal:(SSignal *)suggestedLocalizationSignal;
 
 @property (nonatomic, copy) void (^startMessaging)(void);
+@property (nonatomic, copy) void (^skip)(void);
 @property (nonatomic, copy) void (^startMessagingInAlternativeLanguage)(NSString *);
 
 @property (nonatomic) bool isEnabled;

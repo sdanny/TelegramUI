@@ -86,6 +86,7 @@ static void TGDispatchOnMainThread(dispatch_block_t block) {
     UIColor *_highlightedDotColor;
     
     UIButton *_startButton;
+    UIButton *_skipButton;
     TGModernButton *_alternativeLanguageButton;
     
     SMetaDisposable *_localizationsDisposable;
@@ -354,6 +355,13 @@ static void TGDispatchOnMainThread(dispatch_block_t block) {
     [self.view addSubview:_startButton];
     [self.view addSubview:_alternativeLanguageButton];
     
+    _skipButton = [UIButton buttonWithType:UIButtonTypeCustom];
+    _skipButton.adjustsImageWhenDisabled = false;
+    [_skipButton setTitle:@"Skip" forState:UIControlStateNormal];
+    [_skipButton.titleLabel setFont:TGSystemFontOfSize(16)];
+    [_skipButton setTitleColor:_buttonColor forState:UIControlStateNormal];
+    [self.view addSubview:_skipButton];
+    
     _pageControl = [[UIPageControl alloc] init];
     _pageControl.autoresizingMask = UIViewAutoresizingFlexibleBottomMargin;
     _pageControl.userInteractionEnabled = false;
@@ -517,6 +525,10 @@ static void TGDispatchOnMainThread(dispatch_block_t block) {
     _startButton.frame = CGRectMake(floor((self.view.bounds.size.width - _startButton.frame.size.width) / 2.0f), self.view.bounds.size.height - startButtonY - statusBarHeight, _startButton.frame.size.width, 48.0f);
     [_startButton addTarget:self action:@selector(startButtonPress) forControlEvents:UIControlEventTouchUpInside];
     
+    [_skipButton sizeToFit];
+    _skipButton.frame = CGRectMake(self.view.bounds.size.width - _skipButton.bounds.size.width - 16.0f, 16.0f, _skipButton.bounds.size.width, 48.0f);
+    [_skipButton addTarget:self action:@selector(skipButtonPress) forControlEvents:UIControlEventTouchUpInside];
+    
     _alternativeLanguageButton.frame = CGRectMake(floor((self.view.bounds.size.width - _alternativeLanguageButton.frame.size.width) / 2.0f), CGRectGetMaxY(_startButton.frame) + languageButtonOffset, _alternativeLanguageButton.frame.size.width, _alternativeLanguageButton.frame.size.height);
     
     _pageScrollView.frame=CGRectMake(0, 20, self.view.bounds.size.width, self.view.bounds.size.height - 20);
@@ -547,6 +559,13 @@ static void TGDispatchOnMainThread(dispatch_block_t block) {
 {
     if (_startMessaging) {
         _startMessaging();
+    }
+}
+
+- (void)skipButtonPress
+{
+    if (_skip) {
+        _skip();
     }
 }
 

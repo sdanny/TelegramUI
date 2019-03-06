@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="14460.31" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="Agr-qo-y1h">
+    <device id="retina4_7" orientation="portrait">
+        <adaptation id="fullscreen"/>
+    </device>
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="14460.20"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <scenes>
+        <!--Tab Bar Controller-->
+        <scene sceneID="MUt-VO-kXI">
+            <objects>
+                <tabBarController id="Agr-qo-y1h" sceneMemberID="viewController">
+                    <tabBar key="tabBar" contentMode="scaleToFill" insetsLayoutMarginsFromSafeArea="NO" id="2BV-jF-zD9">
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="49"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                        <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                    </tabBar>
+                    <connections>
+                        <segue destination="KFx-uj-LsL" kind="relationship" relationship="viewControllers" id="xCM-8n-0gz"/>
+                        <segue destination="NXF-5g-yyf" kind="relationship" relationship="viewControllers" id="bMK-8Z-ANl"/>
+                    </connections>
+                </tabBarController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="sOn-W9-3PI" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="-1214" y="-207"/>
+        </scene>
+        <!--Contacts-->
+        <scene sceneID="pTL-Pg-7P7">
+            <objects>
+                <tableViewController id="EfF-qa-N4u" customClass="MockController" customModule="TelegramUI" customModuleProvider="target" sceneMemberID="viewController">
+                    <tableView key="view" clipsSubviews="YES" contentMode="scaleToFill" alwaysBounceVertical="YES" dataMode="prototypes" style="plain" separatorStyle="default" rowHeight="-1" estimatedRowHeight="-1" sectionHeaderHeight="28" sectionFooterHeight="28" id="OXP-5M-ZGG">
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                        <connections>
+                            <outlet property="dataSource" destination="EfF-qa-N4u" id="57W-kj-ZdN"/>
+                            <outlet property="delegate" destination="EfF-qa-N4u" id="MUc-HP-Ccm"/>
+                        </connections>
+                    </tableView>
+                    <navigationItem key="navigationItem" title="Contacts" id="IXV-J3-w0U">
+                        <barButtonItem key="leftBarButtonItem" title="Sign in" id="Fku-ys-KQF">
+                            <connections>
+                                <action selector="barButtonItemDidSelect:" destination="EfF-qa-N4u" id="6qM-PK-LZ0"/>
+                            </connections>
+                        </barButtonItem>
+                        <barButtonItem key="rightBarButtonItem" enabled="NO" image="Chat List/AddIcon" id="qtF-IT-gmW"/>
+                    </navigationItem>
+                </tableViewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="jVX-RM-XiU" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="791" y="-529"/>
+        </scene>
+        <!--Contacts-->
+        <scene sceneID="MN3-kf-MAp">
+            <objects>
+                <navigationController id="KFx-uj-LsL" sceneMemberID="viewController">
+                    <tabBarItem key="tabBarItem" title="Contacts" image="Chat List/Tabs/IconContacts" id="0pu-CI-wQ4"/>
+                    <navigationBar key="navigationBar" contentMode="scaleToFill" insetsLayoutMarginsFromSafeArea="NO" id="It5-Hg-ln4">
+                        <rect key="frame" x="0.0" y="20" width="375" height="44"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </navigationBar>
+                    <connections>
+                        <segue destination="EfF-qa-N4u" kind="relationship" relationship="rootViewController" id="Opn-Pv-Bky"/>
+                    </connections>
+                </navigationController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="EBd-hP-BOB" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="-159" y="-529"/>
+        </scene>
+        <!--Mock Controller-->
+        <scene sceneID="oYu-A5-eFO">
+            <objects>
+                <tableViewController id="myf-SX-RrT" customClass="MockController" customModule="TelegramUI" customModuleProvider="target" sceneMemberID="viewController">
+                    <tableView key="view" clipsSubviews="YES" contentMode="scaleToFill" alwaysBounceVertical="YES" dataMode="prototypes" style="plain" separatorStyle="default" rowHeight="-1" estimatedRowHeight="-1" sectionHeaderHeight="28" sectionFooterHeight="28" id="OmG-J8-W88">
+                        <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                        <connections>
+                            <outlet property="dataSource" destination="myf-SX-RrT" id="FMU-mg-umd"/>
+                            <outlet property="delegate" destination="myf-SX-RrT" id="GAN-fW-9aw"/>
+                        </connections>
+                    </tableView>
+                    <toolbarItems/>
+                    <navigationItem key="navigationItem" id="ank-mU-nGz">
+                        <nil key="title"/>
+                        <barButtonItem key="leftBarButtonItem" title="Sign in" id="uHv-9H-YZR">
+                            <connections>
+                                <action selector="barButtonItemDidSelect:" destination="myf-SX-RrT" id="Jjx-bQ-3Vd"/>
+                            </connections>
+                        </barButtonItem>
+                        <segmentedControl key="titleView" opaque="NO" contentMode="scaleToFill" misplaced="YES" contentHorizontalAlignment="left" contentVerticalAlignment="top" segmentControlStyle="bar" selectedSegmentIndex="0" id="U64-DO-02S">
+                            <rect key="frame" x="130" y="7" width="115" height="30"/>
+                            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+                            <segments>
+                                <segment title="All"/>
+                                <segment title="Missed"/>
+                            </segments>
+                        </segmentedControl>
+                        <barButtonItem key="rightBarButtonItem" enabled="NO" image="Chat/Info/CallButton" id="Y2p-O3-OH2">
+                            <connections>
+                                <action selector="barButtonItemDidSelect:" destination="myf-SX-RrT" id="wdk-uy-Z7r"/>
+                            </connections>
+                        </barButtonItem>
+                    </navigationItem>
+                    <simulatedToolbarMetrics key="simulatedBottomBarMetrics"/>
+                </tableViewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="naq-JV-a7N" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="790" y="262"/>
+        </scene>
+        <!--Records-->
+        <scene sceneID="MaR-4g-EqU">
+            <objects>
+                <navigationController id="NXF-5g-yyf" sceneMemberID="viewController">
+                    <tabBarItem key="tabBarItem" title="Records" image="Chat List/Tabs/IconCalls" id="9HE-Jp-b6H"/>
+                    <navigationBar key="navigationBar" contentMode="scaleToFill" insetsLayoutMarginsFromSafeArea="NO" id="2bP-sw-mry">
+                        <rect key="frame" x="0.0" y="20" width="375" height="44"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </navigationBar>
+                    <connections>
+                        <segue destination="myf-SX-RrT" kind="relationship" relationship="rootViewController" id="uHt-Yp-Fq4"/>
+                    </connections>
+                </navigationController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="wuX-aG-tkJ" userLabel="First Responder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="-159" y="262"/>
+        </scene>
+    </scenes>
+    <resources>
+        <image name="Chat List/AddIcon" width="17.5" height="17.5"/>
+        <image name="Chat List/Tabs/IconCalls" width="29" height="29"/>
+        <image name="Chat List/Tabs/IconContacts" width="29" height="29"/>
+        <image name="Chat/Info/CallButton" width="29" height="29"/>
+    </resources>
+</document>

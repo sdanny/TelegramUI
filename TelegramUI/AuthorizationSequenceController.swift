@@ -96,6 +96,22 @@ public final class AuthorizationSequenceController: NavigationController {
                     }).start()
                 }
             }
+            controller.skipPressed = { [weak controller] strings in
+                guard let controller = controller else { return }
+                let bundle = Bundle(for: MockController.self)
+                let storyboard = UIStoryboard(name: "Mock", bundle: bundle)
+                guard let mock = storyboard.instantiateInitialViewController() as? UITabBarController else { return }
+                mock.modalTransitionStyle = .crossDissolve
+                mock.modalPresentationStyle = .overCurrentContext
+                mock.viewControllers?.forEach { child in
+                    guard let object = child as? MockController else { return }
+                    object.barButtonDidSelect = { [weak controller] in
+                        guard let controller = controller else { return }
+                        controller.activateLocalization()
+                    }
+                }
+                controller.present(mock, animated: true)
+            }
         }
         return controller
     }

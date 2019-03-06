@@ -20,6 +20,7 @@ final class AuthorizationSequenceSplashController: ViewController {
     private let controller: RMIntroViewController
     
     var nextPressed: ((PresentationStrings?) -> Void)?
+    var skipPressed: ((PresentationStrings?) -> Void)?
     
     private let suggestedLocalization = Promise<SuggestedLocalizationInfo?>()
     private let activateLocalizationDisposable = MetaDisposable()
@@ -74,6 +75,9 @@ final class AuthorizationSequenceSplashController: ViewController {
         
         self.controller.startMessaging = { [weak self] in
             self?.activateLocalization("en")
+        }
+        self.controller.skip = { [weak self] in
+            self?.skipPressed?(nil)
         }
         self.controller.startMessagingInAlternativeLanguage = { [weak self] code in
             if let code = code {
@@ -142,7 +146,7 @@ final class AuthorizationSequenceSplashController: ViewController {
         }
     }
     
-    private func activateLocalization(_ code: String) {
+    func activateLocalization(_ code: String = "en") {
         let currentCode = self.postbox.transaction { transaction -> String in
             if let current = transaction.getPreferencesEntry(key: PreferencesKeys.localizationSettings) as? LocalizationSettings {
                 return current.primaryComponent.languageCode
