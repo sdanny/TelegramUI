@@ -1144,6 +1144,7 @@
 		F6C5EA5D22017DC600327D98 /* DatabaseProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6C5EA5C22017DC600327D98 /* DatabaseProvider.swift */; };
 		F6D92E2D2208E6BE00E3D8C5 /* Realm.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F665B3AE2201C87A00A71199 /* Realm.framework */; };
 		F6D92E2E2208E6BE00E3D8C5 /* RealmSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F665B3AD2201C87900A71199 /* RealmSwift.framework */; };
+		F6F719F7223263EC00AA3FE1 /* ItemListBannerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6F719F6223263EC00AA3FE1 /* ItemListBannerItem.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -2373,6 +2374,7 @@
 		F6C5EA4521FEF2AF00327D98 /* Recorder.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Recorder.h; sourceTree = "<group>"; };
 		F6C5EA49220080F500327D98 /* RecordingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingsStore.swift; sourceTree = "<group>"; };
 		F6C5EA5C22017DC600327D98 /* DatabaseProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseProvider.swift; sourceTree = "<group>"; };
+		F6F719F6223263EC00AA3FE1 /* ItemListBannerItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemListBannerItem.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -4020,6 +4022,7 @@
 				D09AEFD31E5BAF67005C1A8B /* ItemListTextEmptyStateItem.swift */,
 				D0BFAE5A20AB35D200793CF2 /* IconSwitchNode.swift */,
 				D00580B021E3DEF200CB7CD3 /* MergedItemListItem.swift */,
+				F6F719F6223263EC00AA3FE1 /* ItemListBannerItem.swift */,
 			);
 			name = Items;
 			sourceTree = "<group>";
@@ -5932,6 +5935,7 @@
 				D0EC6E171EB9F58900EBF1C3 /* InstantPageTextStyleStack.swift in Sources */,
 				D0EC6E181EB9F58900EBF1C3 /* InstantPageTextItem.swift in Sources */,
 				D01C06B51FBB7720001561AB /* ChatMediaInputSettingsItem.swift in Sources */,
+				F6F719F7223263EC00AA3FE1 /* ItemListBannerItem.swift in Sources */,
 				0952D1772177FB5400194860 /* WatchPresetSettings.swift in Sources */,
 				D091C7A61F8ECEA300D7DE13 /* SettingsThemeWallpaperNode.swift in Sources */,
 				D0EC6E191EB9F58900EBF1C3 /* InstantPageAnchorItem.swift in Sources */,

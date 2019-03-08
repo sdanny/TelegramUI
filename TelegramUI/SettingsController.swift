@@ -33,6 +33,7 @@ private struct SettingsItemArguments {
     
     let changeProfilePhoto: () -> Void
     let openUsername: () -> Void
+    let openBannerApp: () -> Void
     let openProxy: () -> Void
     let openSavedMessages: () -> Void
     let openRecentCalls: () -> Void
@@ -53,6 +54,7 @@ private struct SettingsItemArguments {
 
 private enum SettingsSection: Int32 {
     case info
+    case banner
     case proxy
     case media
     case generalSettings
@@ -64,6 +66,8 @@ private enum SettingsEntry: ItemListNodeEntry {
     case userInfo(PresentationTheme, PresentationStrings, PresentationDateTimeFormat, Peer?, CachedPeerData?, ItemListAvatarAndNameInfoItemState, ItemListAvatarAndNameInfoItemUpdatingAvatar?)
     case setProfilePhoto(PresentationTheme, String)
     case setUsername(PresentationTheme, String)
+    
+    case banner
     
     case proxy(PresentationTheme, UIImage?, String, String)
     
@@ -86,6 +90,8 @@ private enum SettingsEntry: ItemListNodeEntry {
         switch self {
             case .userInfo, .setProfilePhoto, .setUsername:
                 return SettingsSection.info.rawValue
+            case .banner:
+                return SettingsSection.banner.rawValue
             case .proxy:
                 return SettingsSection.proxy.rawValue
             case .savedMessages, .recentCalls, .stickers:
@@ -107,32 +113,34 @@ private enum SettingsEntry: ItemListNodeEntry {
                 return 1
             case .setUsername:
                 return 2
-            case .proxy:
+            case .banner:
                 return 3
-            case .savedMessages:
+            case .proxy:
                 return 4
-            case .recentCalls:
+            case .savedMessages:
                 return 5
-            case .stickers:
+            case .recentCalls:
                 return 6
-            case .notificationsAndSounds:
+            case .stickers:
                 return 7
-            case .privacyAndSecurity:
+            case .notificationsAndSounds:
                 return 8
-            case .dataAndStorage:
+            case .privacyAndSecurity:
                 return 9
-            case .themes:
+            case .dataAndStorage:
                 return 10
-            case .language:
+            case .themes:
                 return 11
-            case .passport:
+            case .language:
                 return 12
-            case .watch:
+            case .passport:
                 return 13
-            case .askAQuestion:
+            case .watch:
                 return 14
-            case .faq:
+            case .askAQuestion:
                 return 15
+            case .faq:
+                return 16
         }
     }
     
@@ -263,6 +271,9 @@ private enum SettingsEntry: ItemListNodeEntry {
                 } else {
                     return false
                 }
+            case .banner:
+                if case .banner = rhs { return true }
+                return false
         }
     }
     
@@ -343,6 +354,8 @@ private enum SettingsEntry: ItemListNodeEntry {
                 return ItemListDisclosureItem(theme: theme, icon: image, title: text, label: "", sectionId: ItemListSectionId(self.section), style: .blocks, action: {
                     arguments.openFaq()
                 })
+        case .banner:
+            return ItemListBannerItem(sectionId: ItemListSectionId(self.section), action: arguments.openBannerApp)
         }
     }
 }
@@ -378,6 +391,8 @@ private func settingsEntries(presentationData: PresentationData, state: Settings
         if peer.addressName == nil {
             entries.append(.setUsername(presentationData.theme, presentationData.strings.Settings_SetUsername))
         }
+        
+        entries.append(.banner)
         
         if !proxySettings.servers.isEmpty {
             let valueString: String
@@ -455,6 +470,7 @@ public func settingsController(account: Account, accountManager: AccountManager)
     var updateHiddenAvatarImpl: (() -> Void)?
     var changeProfilePhotoImpl: (() -> Void)?
     var openSavedMessagesImpl: (() -> Void)?
+    var openBannerAppImpl: (() -> Void)?
     var displayCopyContextMenuImpl: ((Peer) -> Void)?
     
     let archivedPacks = Promise<[ArchivedStickerPackItem]?>()
@@ -512,6 +528,8 @@ public func settingsController(account: Account, accountManager: AccountManager)
         changeProfilePhotoImpl?()
     }, openUsername: {
         presentControllerImpl?(usernameSetupController(account: account), nil)
+    }, openBannerApp: {
+        openBannerAppImpl?()
     }, openProxy: {
         pushControllerImpl?(proxySettingsController(account: account))
     }, openSavedMessages: {
@@ -615,6 +633,15 @@ public func settingsController(account: Account, accountManager: AccountManager)
                 }
             })
     })
+    
+    openBannerAppImpl = {
+        let path = "https://itunes.apple.com/ru/app//id1373492013?mt=8"
+        let presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+        
+        openExternalUrl(account: account, url: path, presentationData: presentationData, applicationContext: account.telegramApplicationContext, navigationController: nil, dismissInput: {
+            
+        })
+    }
     
     changeProfilePhotoImpl = {
         let _ = (account.postbox.transaction { transaction -> (Peer?, SearchBotsConfiguration) in
