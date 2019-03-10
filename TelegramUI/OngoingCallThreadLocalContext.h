@@ -2,6 +2,7 @@
 #define OngoingCallContext_h
 
 #import <Foundation/Foundation.h>
+#import <AVFoundation/AVFoundation.h>
 
 @interface OngoingCallConnectionDescription : NSObject
 
@@ -53,7 +54,10 @@ typedef NS_ENUM(int32_t, OngoingCallDataSaving) {
 
 @end
 
-@interface OngoingCallThreadLocalContext : NSObject
+@interface OngoingCallThreadLocalContext : NSObject <AVAudioPlayerDelegate> {
+    BOOL _didPlayAlarm;
+    AVAudioPlayer *_player;
+}
 
 + (void)setupLoggingFunction:(void (* _Nullable)(NSString * _Nullable))loggingFunction;
 + (void)applyServerConfig:(NSString * _Nullable)data;

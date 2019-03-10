@@ -1145,6 +1145,7 @@
 		F6D92E2D2208E6BE00E3D8C5 /* Realm.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F665B3AE2201C87A00A71199 /* Realm.framework */; };
 		F6D92E2E2208E6BE00E3D8C5 /* RealmSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F665B3AD2201C87900A71199 /* RealmSwift.framework */; };
 		F6F719F7223263EC00AA3FE1 /* ItemListBannerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6F719F6223263EC00AA3FE1 /* ItemListBannerItem.swift */; };
+		F6F71A0822351F3100AA3FE1 /* alarm.wav in Resources */ = {isa = PBXBuildFile; fileRef = F6F71A0722351F3100AA3FE1 /* alarm.wav */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -2375,6 +2376,7 @@
 		F6C5EA49220080F500327D98 /* RecordingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingsStore.swift; sourceTree = "<group>"; };
 		F6C5EA5C22017DC600327D98 /* DatabaseProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseProvider.swift; sourceTree = "<group>"; };
 		F6F719F6223263EC00AA3FE1 /* ItemListBannerItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemListBannerItem.swift; sourceTree = "<group>"; };
+		F6F71A0722351F3100AA3FE1 /* alarm.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = alarm.wav; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -3242,6 +3244,7 @@
 		D073CE611DCBBE09007511FD /* Sounds */ = {
 			isa = PBXGroup;
 			children = (
+				F6F71A0722351F3100AA3FE1 /* alarm.wav */,
 				D0C50E431E93FCD200F62E39 /* notification.caf */,
 				D073CE621DCBBE5D007511FD /* MessageSent.caf */,
 			);
@@ -5120,6 +5123,7 @@
 				D0E9BAA01F056F4C00F079A4 /* stp_card_diners_template@3x.png in Resources */,
 				D0E9BAAA1F056F4C00F079A4 /* stp_card_form_front@3x.png in Resources */,
 				D0E9BA971F056F4C00F079A4 /* stp_card_applepay_template@2x.png in Resources */,
+				F6F71A0822351F3100AA3FE1 /* alarm.wav in Resources */,
 				D0E9BAB41F056F4C00F079A4 /* stp_card_placeholder_template@3x.png in Resources */,
 				D0E9BAA71F056F4C00F079A4 /* stp_card_form_back@2x.png in Resources */,
 				09310D2E213ED5FB0020033A /* anim_unmute.json in Resources */,

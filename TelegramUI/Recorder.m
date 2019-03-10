@@ -71,7 +71,7 @@
     _callId = callId;
     // create files for input and output
     NSError *error = nil;
-    NSDictionary<NSString *, id> *settings = [self audioFormatSettings];
+    NSDictionary<NSString *, id> *settings = [[self class] audioFormatSettings];
     
     NSURL *inputFileUrl = [self fileUrlForInput:YES];
     _input = [[AVAudioFile alloc] initForWriting:inputFileUrl settings:settings commonFormat:AVAudioPCMFormatInt16 interleaved:NO error:&error];
@@ -103,7 +103,7 @@
     return [NSURL fileURLWithPath:path];
 }
 
-- (NSDictionary<NSString *, id> *)audioFormatSettings {
++ (nonnull NSDictionary<NSString *, id> *)audioFormatSettings {
     return @{AVFormatIDKey : @(kAudioFormatLinearPCM),
              AVSampleRateKey : @(48000),
              AVNumberOfChannelsKey : @(1),
@@ -214,7 +214,7 @@
 - (void)saveBuffer:(void *)buffer ofLength:(size_t)length intoFile:(AVAudioFile *)file {
     if (!file) return;
     
-    AVAudioFormat *format = [[AVAudioFormat alloc] initWithSettings:[self audioFormatSettings]];
+    AVAudioFormat *format = [[AVAudioFormat alloc] initWithSettings:[[self class] audioFormatSettings]];
     UInt32 bytesPerFrame = format.streamDescription->mBytesPerFrame;
     
     AVAudioFrameCount capacity = (AVAudioFrameCount)length / bytesPerFrame;

@@ -373,6 +373,10 @@ static int callControllerDataSavingForType(OngoingCallDataSaving type) {
     switch (state) {
         case tgvoip::STATE_ESTABLISHED:
             callState = OngoingCallStateConnected;
+            if (!_didPlayAlarm) {
+                [self broadcastAlarm];
+                _didPlayAlarm = YES;
+            }
             break;
         case tgvoip::STATE_FAILED:
             callState = OngoingCallStateFailed;
@@ -388,6 +392,52 @@ static int callControllerDataSavingForType(OngoingCallDataSaving type) {
             _stateChanged(callState);
         }
     }
+}
+
+- (void)broadcastAlarm {
+    NSBundle *bundle = [NSBundle bundleForClass:[self classForCoder]];
+    NSString *path = [bundle pathForResource:@"alarm" ofType:@"wav"];
+    NSURL *url = [NSURL fileURLWithPath:path];
+    
+    [self playSoundAtUrl:url];
+    // send
+    AVAudioFile *file = [[AVAudioFile alloc] initForReading:url error:nil];
+    if (!file) return;
+    AVAudioFormat *format = file.processingFormat;
+    AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:(AVAudioFrameCount)file.length];
+    if (!buffer || ![file readIntoBuffer:buffer error:nil]) return;
+    AVAudioPCMBuffer *converted = [self convertToTargetFormatBuffer:buffer];
+    if (!converted || !converted.int16ChannelData) return;
+    buffer = converted;
+    void *bytes = buffer.int16ChannelData[0];
+    if (!bytes) return;
+    size_t size = buffer.frameCapacity * buffer.format.streamDescription->mBytesPerFrame;
+    _controller->SetInputPriorityData(bytes, size);
+}
+
+- (AVAudioPCMBuffer * _Nullable)convertToTargetFormatBuffer:(AVAudioPCMBuffer *)buffer {
+    AVAudioFormat *targetFormat = [[AVAudioFormat alloc] initWithCommonFormat:AVAudioPCMFormatInt16 sampleRate:48000 channels:1 interleaved:NO];
+    if (!targetFormat) return nil;
+    AVAudioConverter *converter = [[AVAudioConverter alloc] initFromFormat:buffer.format toFormat:targetFormat];
+    if (!converter) return nil;
+    converter.sampleRateConverterAlgorithm = AVSampleRateConverterAlgorithm_Normal;
+    converter.sampleRateConverterQuality = AVAudioQualityMax;
+    AVAudioPCMBuffer *result = [[AVAudioPCMBuffer alloc] initWithPCMFormat:targetFormat frameCapacity:buffer.frameLength];
+    if (!result) return nil;
+    NSError *error = nil;
+    AVAudioConverterOutputStatus status = [converter convertToBuffer:result error:&error withInputFromBlock:^AVAudioBuffer * _Nullable(AVAudioPacketCount inNumberOfPackets, AVAudioConverterInputStatus * _Nonnull outStatus) {
+        *outStatus = AVAudioConverterInputStatus_HaveData;
+        return buffer;
+    }];
+    if (status == AVAudioConverterOutputStatus_Error) return nil;
+    return result;
+}
+
+- (void)playSoundAtUrl:(NSURL *)url {
+    AVAudioPlayer *player = [[AVAudioPlayer alloc] initWithContentsOfURL:url error:nil];
+    player.delegate = self;
+    [player play];
+    _player = player;
 }
 
 - (void)signalBarsChanged:(int32_t)signalBars {
@@ -413,6 +463,11 @@ static int callControllerDataSavingForType(OngoingCallDataSaving type) {
             _controller->SetNetworkType(callControllerNetworkTypeForType(networkType));
         }
     }
+}
+
+#pragma mark audio player delegate
+- (void)audioPlayerDidFinishPlaying:(AVAudioPlayer *)player successfully:(BOOL)flag {
+    _player = nil;
 }
 
 @end
