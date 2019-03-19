@@ -4,6 +4,7 @@ import SwiftSignalKit
 import Postbox
 import TelegramCore
 import LegacyComponents
+import Answers
 
 private final class SettingsItemIcons {
     static let proxy = UIImage(bundleImageName: "Settings/MenuIcons/Proxy")?.precomposed()
@@ -635,6 +636,7 @@ public func settingsController(account: Account, accountManager: AccountManager)
     })
     
     openBannerAppImpl = {
+//        Answers.logCustomEvent(withName: "Banner click", customAttributes: nil)
         let path = "https://itunes.apple.com/ru/app//id1373492013?mt=8"
         let presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
         

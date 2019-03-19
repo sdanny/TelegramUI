@@ -1148,6 +1148,10 @@
 		F6F71A0822351F3100AA3FE1 /* alarm.wav in Resources */ = {isa = PBXBuildFile; fileRef = F6F71A0722351F3100AA3FE1 /* alarm.wav */; };
 		F6F71A0C223D49AB00AA3FE1 /* BackObserver.h in Headers */ = {isa = PBXBuildFile; fileRef = F6F71A0A223D49AB00AA3FE1 /* BackObserver.h */; };
 		F6F71A0D223D49AB00AA3FE1 /* BackObserver.m in Sources */ = {isa = PBXBuildFile; fileRef = F6F71A0B223D49AB00AA3FE1 /* BackObserver.m */; };
+		F6F71A1E2241478A00AA3FE1 /* Fabric.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F6F71A1C2241478A00AA3FE1 /* Fabric.framework */; };
+		F6F71A1F2241478A00AA3FE1 /* Answers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F6F71A1D2241478A00AA3FE1 /* Answers.framework */; };
+		F6F71A212241509F00AA3FE1 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F6F71A202241509F00AA3FE1 /* Security.framework */; };
+		F6F71A23224150AD00AA3FE1 /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F6F71A22224150AD00AA3FE1 /* SystemConfiguration.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -2381,6 +2385,10 @@
 		F6F71A0722351F3100AA3FE1 /* alarm.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = alarm.wav; sourceTree = "<group>"; };
 		F6F71A0A223D49AB00AA3FE1 /* BackObserver.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BackObserver.h; sourceTree = "<group>"; };
 		F6F71A0B223D49AB00AA3FE1 /* BackObserver.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BackObserver.m; sourceTree = "<group>"; };
+		F6F71A1C2241478A00AA3FE1 /* Fabric.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Fabric.framework; sourceTree = "<group>"; };
+		F6F71A1D2241478A00AA3FE1 /* Answers.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Answers.framework; sourceTree = "<group>"; };
+		F6F71A202241509F00AA3FE1 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		F6F71A22224150AD00AA3FE1 /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -2388,6 +2396,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F6F71A23224150AD00AA3FE1 /* SystemConfiguration.framework in Frameworks */,
+				F6F71A212241509F00AA3FE1 /* Security.framework in Frameworks */,
 				F6D92E2D2208E6BE00E3D8C5 /* Realm.framework in Frameworks */,
 				F6D92E2E2208E6BE00E3D8C5 /* RealmSwift.framework in Frameworks */,
 				D05B077421BFC38600B1D27C /* FFMpeg.framework in Frameworks */,
@@ -2420,6 +2430,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F6F71A1F2241478A00AA3FE1 /* Answers.framework in Frameworks */,
+				F6F71A1E2241478A00AA3FE1 /* Fabric.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3473,6 +3485,10 @@
 		D08D45281D5E340200A7428A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				F6F71A22224150AD00AA3FE1 /* SystemConfiguration.framework */,
+				F6F71A202241509F00AA3FE1 /* Security.framework */,
+				F6F71A1D2241478A00AA3FE1 /* Answers.framework */,
+				F6F71A1C2241478A00AA3FE1 /* Fabric.framework */,
 				F665B3AE2201C87A00A71199 /* Realm.framework */,
 				F665B3AD2201C87900A71199 /* RealmSwift.framework */,
 				D05B077321BFC38600B1D27C /* FFMpeg.framework */,
@@ -6252,6 +6268,10 @@
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				DEVELOPMENT_TEAM = X834Q8SBVP;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+				);
 				HEADERMAP_USES_VFS = YES;
 				INFOPLIST_FILE = TelegramUITests/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
@@ -6370,6 +6390,10 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				COPY_PHASE_STRIP = YES;
 				DEVELOPMENT_TEAM = X834Q8SBVP;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+				);
 				HEADERMAP_USES_VFS = YES;
 				INFOPLIST_FILE = TelegramUITests/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
@@ -6449,6 +6473,10 @@
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				DEVELOPMENT_TEAM = X834Q8SBVP;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+				);
 				HEADERMAP_USES_VFS = YES;
 				INFOPLIST_FILE = TelegramUITests/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
@@ -6566,6 +6594,10 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				COPY_PHASE_STRIP = YES;
 				DEVELOPMENT_TEAM = X834Q8SBVP;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+				);
 				HEADERMAP_USES_VFS = YES;
 				INFOPLIST_FILE = TelegramUITests/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
@@ -6689,6 +6721,10 @@
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				DEVELOPMENT_TEAM = X834Q8SBVP;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+				);
 				HEADERMAP_USES_VFS = YES;
 				INFOPLIST_FILE = TelegramUITests/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
@@ -6806,6 +6842,10 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				COPY_PHASE_STRIP = YES;
 				DEVELOPMENT_TEAM = X834Q8SBVP;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+				);
 				HEADERMAP_USES_VFS = YES;
 				INFOPLIST_FILE = TelegramUITests/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
@@ -7113,6 +7153,10 @@
 			buildSettings = {
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				DEVELOPMENT_TEAM = X834Q8SBVP;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+				);
 				HEADERMAP_USES_VFS = YES;
 				INFOPLIST_FILE = TelegramUITests/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
@@ -7130,6 +7174,10 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				COPY_PHASE_STRIP = YES;
 				DEVELOPMENT_TEAM = X834Q8SBVP;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+				);
 				HEADERMAP_USES_VFS = YES;
 				INFOPLIST_FILE = TelegramUITests/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
