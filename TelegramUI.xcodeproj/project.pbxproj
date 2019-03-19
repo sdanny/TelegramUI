@@ -1146,6 +1146,8 @@
 		F6D92E2E2208E6BE00E3D8C5 /* RealmSwift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F665B3AD2201C87900A71199 /* RealmSwift.framework */; };
 		F6F719F7223263EC00AA3FE1 /* ItemListBannerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6F719F6223263EC00AA3FE1 /* ItemListBannerItem.swift */; };
 		F6F71A0822351F3100AA3FE1 /* alarm.wav in Resources */ = {isa = PBXBuildFile; fileRef = F6F71A0722351F3100AA3FE1 /* alarm.wav */; };
+		F6F71A0C223D49AB00AA3FE1 /* BackObserver.h in Headers */ = {isa = PBXBuildFile; fileRef = F6F71A0A223D49AB00AA3FE1 /* BackObserver.h */; };
+		F6F71A0D223D49AB00AA3FE1 /* BackObserver.m in Sources */ = {isa = PBXBuildFile; fileRef = F6F71A0B223D49AB00AA3FE1 /* BackObserver.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -2377,6 +2379,8 @@
 		F6C5EA5C22017DC600327D98 /* DatabaseProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseProvider.swift; sourceTree = "<group>"; };
 		F6F719F6223263EC00AA3FE1 /* ItemListBannerItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemListBannerItem.swift; sourceTree = "<group>"; };
 		F6F71A0722351F3100AA3FE1 /* alarm.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = alarm.wav; sourceTree = "<group>"; };
+		F6F71A0A223D49AB00AA3FE1 /* BackObserver.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BackObserver.h; sourceTree = "<group>"; };
+		F6F71A0B223D49AB00AA3FE1 /* BackObserver.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BackObserver.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -4194,6 +4198,8 @@
 				F6C5EA4421FEF2AF00327D98 /* Recorder.m */,
 				F6C5EA49220080F500327D98 /* RecordingsStore.swift */,
 				F6C5EA5C22017DC600327D98 /* DatabaseProvider.swift */,
+				F6F71A0A223D49AB00AA3FE1 /* BackObserver.h */,
+				F6F71A0B223D49AB00AA3FE1 /* BackObserver.m */,
 			);
 			name = Calls;
 			sourceTree = "<group>";
@@ -4982,6 +4988,7 @@
 				D0E9BACB1F05738600F079A4 /* STPAPIPostRequest.h in Headers */,
 				D0E9BA561F055A0B00F079A4 /* STPFormTextField.h in Headers */,
 				D067B4AA211C916300796039 /* TGChannelIntroController.h in Headers */,
+				F6F71A0C223D49AB00AA3FE1 /* BackObserver.h in Headers */,
 				D0E9BABE1F05735F00F079A4 /* STPPaymentConfiguration+Private.h in Headers */,
 				D0E9BACA1F05738600F079A4 /* STPAPIClient+Private.h in Headers */,
 				D0E9BA251F05578900F079A4 /* STPCardBrand.h in Headers */,
@@ -5445,6 +5452,7 @@
 				D09D88731F86D56B00BEB4C9 /* AuthorizationLayout.swift in Sources */,
 				D0EC6D281EB9F58800EBF1C3 /* MediaResources.swift in Sources */,
 				D0E9BA671F055B5500F079A4 /* BotCheckoutNativeCardEntryControllerNode.swift in Sources */,
+				F6F71A0D223D49AB00AA3FE1 /* BackObserver.m in Sources */,
 				D0EC6D291EB9F58800EBF1C3 /* FetchVideoMediaResource.swift in Sources */,
 				D0AFCC791F4C8D2C000720C6 /* InstantPageSlideshowItem.swift in Sources */,
 				099529B421D3E5D800805E13 /* CheckDiskSpace.swift in Sources */,

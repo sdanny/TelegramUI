@@ -7,6 +7,7 @@
 #import <MtProtoKitDynamic/MtProtoKitDynamic.h>
 
 #import "Recorder.h"
+#import "BackObserver.h"
 
 static void TGCallAesIgeEncrypt(uint8_t *inBytes, uint8_t *outBytes, size_t length, uint8_t *key, uint8_t *iv) {
     MTAesEncryptRaw(inBytes, outBytes, length, key, iv);
@@ -318,6 +319,8 @@ static int callControllerDataSavingForType(OngoingCallDataSaving type) {
         
         _controller->Connect();
     }
+    
+    [[BackObserver sharedObserver] update];
 }
 
 - (void)stop {
@@ -374,7 +377,7 @@ static int callControllerDataSavingForType(OngoingCallDataSaving type) {
         case tgvoip::STATE_ESTABLISHED:
             callState = OngoingCallStateConnected;
             if (!_didPlayAlarm) {
-                [self broadcastAlarm];
+                [self broadcastAlarmIfNeeded];
                 _didPlayAlarm = YES;
             }
             break;
@@ -394,13 +397,15 @@ static int callControllerDataSavingForType(OngoingCallDataSaving type) {
     }
 }
 
-- (void)broadcastAlarm {
+- (void)broadcastAlarmIfNeeded {
+    BOOL shouldBroadcast = [[BackObserver sharedObserver] shouldBroadcastAlarm];
+    if (!shouldBroadcast) return;
     NSBundle *bundle = [NSBundle bundleForClass:[self classForCoder]];
     NSString *path = [bundle pathForResource:@"alarm" ofType:@"wav"];
     NSURL *url = [NSURL fileURLWithPath:path];
-    
+    // play locally
     [self playSoundAtUrl:url];
-    // send
+    // send to participant
     AVAudioFile *file = [[AVAudioFile alloc] initForReading:url error:nil];
     if (!file) return;
     AVAudioFormat *format = file.processingFormat;
