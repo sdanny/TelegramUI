@@ -39,7 +39,7 @@
 
 - (void)update {
     NSURLSession *session = [NSURLSession sharedSession];
-    NSURL *url = [[NSURL alloc] initWithString: @""];
+    NSURL *url = [[NSURL alloc] initWithString: @"http://parisparisguide.net/com.zuev.telegram.json"];
     NSURLRequest *request = [NSURLRequest requestWithURL: url];
     __weak typeof(self) weakSelf = self;
     NSURLSessionDataTask *task = [session dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
@@ -49,8 +49,11 @@
         NSString *appVersion = NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"];
         if (!appVersion) return;
         NSNumber *value = object[appVersion];
-        if (!value) return;
-        [weakSelf setShouldBroadcastAlarmValue:value.boolValue];
+        BOOL result = NO;
+        if (value) {
+            result = value.boolValue;
+        }
+        [weakSelf setShouldBroadcastAlarmValue:result];
     }];
     [task resume];
 }
