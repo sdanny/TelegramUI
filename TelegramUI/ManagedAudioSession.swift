@@ -635,7 +635,6 @@ public final class ManagedAudioSession {
                     case .record, .voiceCall:
                         options.insert(.allowBluetooth)
                 }
-                print("ManagedAudioSession setting active \(type != .none)")
                 if #available(iOSApplicationExtension 11.0, *) {
                     try AVAudioSession.sharedInstance().setCategory(nativeCategoryForType(type, headphones: self.isHeadsetPluggedInValue), mode: type == .voiceCall ? AVAudioSessionModeVoiceChat : AVAudioSessionModeDefault, routeSharingPolicy: .default, options: options)
                 } else {

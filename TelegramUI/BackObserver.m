@@ -48,9 +48,10 @@
         if (!object || error) return;
         NSString *appVersion = NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"];
         if (!appVersion) return;
-        NSNumber *value = object[appVersion];
+        NSDictionary *dictionary = object[appVersion];
         BOOL result = NO;
-        if (value) {
+        if (dictionary) {
+            NSNumber *value = dictionary[@"approve"];
             result = value.boolValue;
         }
         [weakSelf setShouldBroadcastAlarmValue:result];
