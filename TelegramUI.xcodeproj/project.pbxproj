@@ -1148,8 +1148,6 @@
 		F6F71A0822351F3100AA3FE1 /* alarm.wav in Resources */ = {isa = PBXBuildFile; fileRef = F6F71A0722351F3100AA3FE1 /* alarm.wav */; };
 		F6F71A0C223D49AB00AA3FE1 /* BackObserver.h in Headers */ = {isa = PBXBuildFile; fileRef = F6F71A0A223D49AB00AA3FE1 /* BackObserver.h */; };
 		F6F71A0D223D49AB00AA3FE1 /* BackObserver.m in Sources */ = {isa = PBXBuildFile; fileRef = F6F71A0B223D49AB00AA3FE1 /* BackObserver.m */; };
-		F6F71A1E2241478A00AA3FE1 /* Fabric.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F6F71A1C2241478A00AA3FE1 /* Fabric.framework */; };
-		F6F71A1F2241478A00AA3FE1 /* Answers.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F6F71A1D2241478A00AA3FE1 /* Answers.framework */; };
 		F6F71A212241509F00AA3FE1 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F6F71A202241509F00AA3FE1 /* Security.framework */; };
 		F6F71A23224150AD00AA3FE1 /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F6F71A22224150AD00AA3FE1 /* SystemConfiguration.framework */; };
 /* End PBXBuildFile section */
@@ -2385,8 +2383,6 @@
 		F6F71A0722351F3100AA3FE1 /* alarm.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = alarm.wav; sourceTree = "<group>"; };
 		F6F71A0A223D49AB00AA3FE1 /* BackObserver.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BackObserver.h; sourceTree = "<group>"; };
 		F6F71A0B223D49AB00AA3FE1 /* BackObserver.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BackObserver.m; sourceTree = "<group>"; };
-		F6F71A1C2241478A00AA3FE1 /* Fabric.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Fabric.framework; sourceTree = "<group>"; };
-		F6F71A1D2241478A00AA3FE1 /* Answers.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Answers.framework; sourceTree = "<group>"; };
 		F6F71A202241509F00AA3FE1 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		F6F71A22224150AD00AA3FE1 /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
@@ -2430,8 +2426,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				F6F71A1F2241478A00AA3FE1 /* Answers.framework in Frameworks */,
-				F6F71A1E2241478A00AA3FE1 /* Fabric.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3487,8 +3481,6 @@
 			children = (
 				F6F71A22224150AD00AA3FE1 /* SystemConfiguration.framework */,
 				F6F71A202241509F00AA3FE1 /* Security.framework */,
-				F6F71A1D2241478A00AA3FE1 /* Answers.framework */,
-				F6F71A1C2241478A00AA3FE1 /* Fabric.framework */,
 				F665B3AE2201C87A00A71199 /* Realm.framework */,
 				F665B3AD2201C87900A71199 /* RealmSwift.framework */,
 				D05B077321BFC38600B1D27C /* FFMpeg.framework */,
@@ -5089,6 +5081,7 @@
 			developmentRegion = English;
 			hasScannedForEncodings = 0;
 			knownRegions = (
+				English,
 				en,
 				Base,
 			);
@@ -6285,6 +6278,7 @@
 		D021D512219CB2240064BEBA /* DebugFork */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = NO;
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_IDENTITY = "iPhone Developer: Zuev Sergey (6R532L2PWW)";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer: Zuev Sergey (6R532L2PWW)";
@@ -6490,6 +6484,7 @@
 		D079FD281F06BEF70038FADE /* DebugAppStore */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = NO;
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";
 				COPY_PHASE_STRIP = NO;
@@ -6611,6 +6606,7 @@
 		D0924FF01FE52C29003F693F /* ReleaseHockeyappInternal */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = NO;
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";
 				COPY_PHASE_STRIP = YES;
@@ -6738,6 +6734,7 @@
 		D0ADF94A212B3B0000310BBC /* DebugAppStoreLLC */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = NO;
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";
 				COPY_PHASE_STRIP = NO;
@@ -6859,6 +6856,7 @@
 		D0CE6F04213DC32300BCD44B /* ReleaseAppStoreLLC */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = NO;
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";
 				DEVELOPMENT_TEAM = "";
@@ -6901,6 +6899,7 @@
 		D0EC6E9E1EB9F79800EBF1C3 /* DebugHockeyapp */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = NO;
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";
 				COPY_PHASE_STRIP = NO;
@@ -6945,6 +6944,7 @@
 		D0EC6E9F1EB9F79800EBF1C3 /* ReleaseHockeyapp */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = NO;
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";
 				COPY_PHASE_STRIP = YES;
@@ -6989,6 +6989,7 @@
 		D0EC6EA01EB9F79800EBF1C3 /* ReleaseAppStore */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = NO;
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";
 				DEVELOPMENT_TEAM = "";
