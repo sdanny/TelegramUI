@@ -4,20 +4,35 @@ import SwiftSignalKit
 import Postbox
 import TelegramCore
 
+public func autodownloadDataSizeString(_ size: Int64, decimalSeparator: String = ".") -> String {
+    if size >= 1024 * 1024 * 1024 {
+        let remainder = (size % (1024 * 1024 * 1024)) / (1024 * 1024 * 102)
+        if remainder != 0 {
+            return "\(size / (1024 * 1024 * 1024))\(decimalSeparator)\(remainder) GB"
+        } else {
+            return "\(size / (1024 * 1024 * 1024)) GB"
+        }
+    } else if size >= 1024 * 1024 {
+        let remainder = (size % (1024 * 1024)) / (1024 * 102)
+        if size < 10 * 1024 * 1024 {
+            return "\(size / (1024 * 1024))\(decimalSeparator)\(remainder) MB"
+        } else {
+            return "\(size / (1024 * 1024)) MB"
+        }
+    } else if size >= 1024 {
+        return "\(size / 1024) KB"
+    } else {
+        return "\(size) B"
+    }
+}
+
 enum AutomaticDownloadCategory {
     case photo
     case video
     case file
-    case voiceMessage
-    case videoMessage
 }
 
-private enum ConnectionType {
-    case cellular
-    case wifi
-}
-
-private enum PeerType {
+private enum AutomaticDownloadPeerType {
     case contact
     case otherPrivate
     case group
@@ -25,135 +40,94 @@ private enum PeerType {
 }
 
 private final class AutodownloadMediaCategoryControllerArguments {
-    let toggle: (ConnectionType, PeerType) -> Void
+    let togglePeer: (AutomaticDownloadPeerType) -> Void
     let adjustSize: (Int32) -> Void
+    let toggleVideoPreload: () -> Void
     
-    init(toggle: @escaping (ConnectionType, PeerType) -> Void, adjustSize: @escaping (Int32) -> Void) {
-        self.toggle = toggle
+    init(togglePeer: @escaping (AutomaticDownloadPeerType) -> Void, adjustSize: @escaping (Int32) -> Void, toggleVideoPreload: @escaping () -> Void) {
+        self.togglePeer = togglePeer
         self.adjustSize = adjustSize
+        self.toggleVideoPreload = toggleVideoPreload
     }
 }
 
 private enum AutodownloadMediaCategorySection: Int32 {
-    case cellular
-    case wifi
+    case peer
     case size
 }
 
 private enum AutodownloadMediaCategoryEntry: ItemListNodeEntry {
-    case cellularHeader(PresentationTheme, String)
-    case cellularContacts(PresentationTheme, String, Bool)
-    case cellularOtherPrivate(PresentationTheme, String, Bool)
-    case cellularGroups(PresentationTheme, String, Bool)
-    case cellularChannels(PresentationTheme, String, Bool)
-    
-    case wifiHeader(PresentationTheme, String)
-    case wifiContacts(PresentationTheme, String, Bool)
-    case wifiOtherPrivate(PresentationTheme, String, Bool)
-    case wifiGroups(PresentationTheme, String, Bool)
-    case wifiChannels(PresentationTheme, String, Bool)
+    case peerHeader(PresentationTheme, String)
+    case peerContacts(PresentationTheme, String, Bool)
+    case peerOtherPrivate(PresentationTheme, String, Bool)
+    case peerGroups(PresentationTheme, String, Bool)
+    case peerChannels(PresentationTheme, String, Bool)
     
     case sizeHeader(PresentationTheme, String)
-    case sizeItem(PresentationTheme, String, Int32)
+    case sizeItem(PresentationTheme, String, String, Int32)
+    case sizePreload(PresentationTheme, String, Bool, Bool)
+    case sizePreloadInfo(PresentationTheme, String)
     
     var section: ItemListSectionId {
         switch self {
-        case .cellularHeader, .cellularContacts, .cellularOtherPrivate, .cellularGroups, .cellularChannels:
-            return AutodownloadMediaCategorySection.cellular.rawValue
-        case .wifiHeader, .wifiContacts, .wifiOtherPrivate, .wifiGroups, .wifiChannels:
-            return AutodownloadMediaCategorySection.wifi.rawValue
-            case .sizeHeader, .sizeItem:
+            case .peerHeader, .peerContacts, .peerOtherPrivate, .peerGroups, .peerChannels:
+                return AutodownloadMediaCategorySection.peer.rawValue
+            case .sizeHeader, .sizeItem, .sizePreload, .sizePreloadInfo:
                 return AutodownloadMediaCategorySection.size.rawValue
         }
     }
     
     var stableId: Int32 {
         switch self {
-            case .cellularHeader:
+            case .peerHeader:
                 return 0
-            case .cellularContacts:
+            case .peerContacts:
                 return 1
-            case .cellularOtherPrivate:
+            case .peerOtherPrivate:
                 return 2
-            case .cellularGroups:
+            case .peerGroups:
                 return 3
-            case .cellularChannels:
+            case .peerChannels:
                 return 4
-            case .wifiHeader:
-                return 5
-            case .wifiContacts:
-                return 6
-            case .wifiOtherPrivate:
-                return 7
-            case .wifiGroups:
-                return 8
-            case .wifiChannels:
-                return 9
             case .sizeHeader:
-                return 10
+                return 5
             case .sizeItem:
-                return 11
+                return 6
+            case .sizePreload:
+                return 7
+            case .sizePreloadInfo:
+                return 8
         }
     }
     
     static func ==(lhs: AutodownloadMediaCategoryEntry, rhs: AutodownloadMediaCategoryEntry) -> Bool {
         switch lhs {
-            case let .cellularHeader(lhsTheme, lhsText):
-                if case let .cellularHeader(rhsTheme, rhsText) = rhs, lhsTheme === rhsTheme, lhsText == rhsText {
+            case let .peerHeader(lhsTheme, lhsText):
+                if case let .peerHeader(rhsTheme, rhsText) = rhs, lhsTheme === rhsTheme, lhsText == rhsText {
                     return true
                 } else {
                     return false
                 }
-            case let .cellularContacts(lhsTheme, lhsText, lhsValue):
-                if case let .cellularContacts(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
+            case let .peerContacts(lhsTheme, lhsText, lhsValue):
+                if case let .peerContacts(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
                     return true
                 } else {
                     return false
                 }
-            case let .cellularOtherPrivate(lhsTheme, lhsText, lhsValue):
-                if case let .cellularOtherPrivate(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
+            case let .peerOtherPrivate(lhsTheme, lhsText, lhsValue):
+                if case let .peerOtherPrivate(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
                     return true
                 } else {
                     return false
                 }
-            case let .cellularGroups(lhsTheme, lhsText, lhsValue):
-                if case let .cellularGroups(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
+            case let .peerGroups(lhsTheme, lhsText, lhsValue):
+                if case let .peerGroups(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
                     return true
                 } else {
                     return false
                 }
-            case let .cellularChannels(lhsTheme, lhsText, lhsValue):
-                if case let .cellularChannels(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
-                    return true
-                } else {
-                    return false
-                }
-            case let .wifiHeader(lhsTheme, lhsText):
-                if case let .wifiHeader(rhsTheme, rhsText) = rhs, lhsTheme === rhsTheme, lhsText == rhsText {
-                    return true
-                } else {
-                    return false
-                }
-            case let .wifiContacts(lhsTheme, lhsText, lhsValue):
-                if case let .wifiContacts(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
-                    return true
-                } else {
-                    return false
-                }
-            case let .wifiOtherPrivate(lhsTheme, lhsText, lhsValue):
-                if case let .wifiOtherPrivate(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
-                    return true
-                } else {
-                    return false
-                }
-            case let .wifiGroups(lhsTheme, lhsText, lhsValue):
-                if case let .wifiGroups(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
-                    return true
-                } else {
-                    return false
-                }
-            case let .wifiChannels(lhsTheme, lhsText, lhsValue):
-                if case let .wifiChannels(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
+            case let .peerChannels(lhsTheme, lhsText, lhsValue):
+                if case let .peerChannels(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
                     return true
                 } else {
                     return false
@@ -164,8 +138,20 @@ private enum AutodownloadMediaCategoryEntry: ItemListNodeEntry {
                 } else {
                     return false
                 }
-            case let .sizeItem(lhsTheme, lhsText, lhsValue):
-                if case let .sizeItem(rhsTheme, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue {
+            case let .sizeItem(lhsTheme, lhsDecimalSeparator, lhsText, lhsValue):
+                if case let .sizeItem(rhsTheme, rhsDecimalSeparator, rhsText, rhsValue) = rhs, lhsTheme === rhsTheme, lhsDecimalSeparator == rhsDecimalSeparator, lhsText == rhsText, lhsValue == rhsValue {
+                    return true
+                } else {
+                    return false
+                }
+            case let .sizePreload(lhsTheme, lhsText, lhsValue, lhsEnabled):
+                if case let .sizePreload(rhsTheme, rhsText, rhsValue, rhsEnabled) = rhs, lhsTheme === rhsTheme, lhsText == rhsText, lhsValue == rhsValue, lhsEnabled == rhsEnabled {
+                    return true
+                } else {
+                    return false
+                }
+            case let .sizePreloadInfo(lhsTheme, lhsText):
+                if case let .sizePreloadInfo(rhsTheme, rhsText) = rhs, lhsTheme === rhsTheme, lhsText == rhsText {
                     return true
                 } else {
                     return false
@@ -179,53 +165,38 @@ private enum AutodownloadMediaCategoryEntry: ItemListNodeEntry {
     
     func item(_ arguments: AutodownloadMediaCategoryControllerArguments) -> ListViewItem {
         switch self {
-            case let .cellularHeader(theme, text):
+            case let .peerHeader(theme, text):
                 return ItemListSectionHeaderItem(theme: theme, text: text, sectionId: self.section)
-            case let .cellularContacts(theme, text, value):
+            case let .peerContacts(theme, text, value):
                 return ItemListSwitchItem(theme: theme, title: text, value: value, enableInteractiveChanges: true, enabled: true, sectionId: self.section, style: .blocks, updated: { value in
-                    arguments.toggle(.cellular, .contact)
+                    arguments.togglePeer(.contact)
                 })
-            case let .cellularOtherPrivate(theme, text, value):
+            case let .peerOtherPrivate(theme, text, value):
                 return ItemListSwitchItem(theme: theme, title: text, value: value, enableInteractiveChanges: true, enabled: true, sectionId: self.section, style: .blocks, updated: { value in
-                    arguments.toggle(.cellular, .otherPrivate)
+                    arguments.togglePeer(.otherPrivate)
                 })
-            case let .cellularGroups(theme, text, value):
+            case let .peerGroups(theme, text, value):
                 return ItemListSwitchItem(theme: theme, title: text, value: value, enableInteractiveChanges: true, enabled: true, sectionId: self.section, style: .blocks, updated: { value in
-                    arguments.toggle(.cellular, .group)
+                    arguments.togglePeer(.group)
                 })
-            case let .cellularChannels(theme, text, value):
+            case let .peerChannels(theme, text, value):
                 return ItemListSwitchItem(theme: theme, title: text, value: value, enableInteractiveChanges: true, enabled: true, sectionId: self.section, style: .blocks, updated: { value in
-                    arguments.toggle(.cellular, .channel)
-                })
-            case let .wifiHeader(theme, text):
-                return ItemListSectionHeaderItem(theme: theme, text: text, sectionId: self.section)
-            case let .wifiContacts(theme, text, value):
-                return ItemListSwitchItem(theme: theme, title: text, value: value, enableInteractiveChanges: true, enabled: true, sectionId: self.section, style: .blocks, updated: { value in
-                    arguments.toggle(.wifi, .contact)
-                })
-            case let .wifiOtherPrivate(theme, text, value):
-                return ItemListSwitchItem(theme: theme, title: text, value: value, enableInteractiveChanges: true, enabled: true, sectionId: self.section, style: .blocks, updated: { value in
-                    arguments.toggle(.wifi, .otherPrivate)
-                })
-            case let .wifiGroups(theme, text, value):
-                return ItemListSwitchItem(theme: theme, title: text, value: value, enableInteractiveChanges: true, enabled: true, sectionId: self.section, style: .blocks, updated: { value in
-                    arguments.toggle(.wifi, .group)
-                })
-            case let .wifiChannels(theme, text, value):
-                return ItemListSwitchItem(theme: theme, title: text, value: value, enableInteractiveChanges: true, enabled: true, sectionId: self.section, style: .blocks, updated: { value in
-                    arguments.toggle(.wifi, .channel)
+                    arguments.togglePeer(.channel)
                 })
             case let .sizeHeader(theme, text):
                 return ItemListSectionHeaderItem(theme: theme, text: text, sectionId: self.section)
-            case let .sizeItem(theme, text, value):
-                return AutodownloadSizeLimitItem(theme: theme, text: text, value: value, sectionId: self.section, updated: { value in
+            case let .sizeItem(theme, decimalSeparator, text, value):
+                return AutodownloadSizeLimitItem(theme: theme, decimalSeparator: decimalSeparator, text: text, value: value, sectionId: self.section, updated: { value in
                     arguments.adjustSize(value)
                 })
+            case let .sizePreload(theme, text, value, enabled):
+                return ItemListSwitchItem(theme: theme, title: text, value: value && enabled, enableInteractiveChanges: true, enabled: enabled, sectionId: self.section, style: .blocks, updated: { value in
+                    arguments.toggleVideoPreload()
+                })
+            case let .sizePreloadInfo(theme, text):
+                return ItemListTextItem(theme: theme, text: .plain(text), sectionId: self.section)
         }
     }
-}
-
-private struct AutodownloadMediaCategoryControllerState: Equatable {
 }
 
 private struct AutomaticDownloadPeers {
@@ -233,110 +204,76 @@ private struct AutomaticDownloadPeers {
     let otherPrivate: Bool
     let groups: Bool
     let channels: Bool
+    
+    init(category: MediaAutoDownloadCategory) {
+        self.contacts = category.contacts
+        self.otherPrivate = category.otherPrivate
+        self.groups = category.groups
+        self.channels = category.channels
+    }
 }
 
-private func autodownloadMediaCategoryControllerEntries(presentationData: PresentationData, category: AutomaticDownloadCategory, settings: AutomaticMediaDownloadSettings) -> [AutodownloadMediaCategoryEntry] {
+private func autodownloadMediaCategoryControllerEntries(presentationData: PresentationData, connectionType: AutomaticDownloadConnectionType, category: AutomaticDownloadCategory, settings: MediaAutoDownloadSettings) -> [AutodownloadMediaCategoryEntry] {
     var entries: [AutodownloadMediaCategoryEntry] = []
     
-    let cellular: AutomaticDownloadPeers
-    let wifi: AutomaticDownloadPeers
+    let categories = effectiveAutodownloadCategories(settings: settings, networkType: connectionType.automaticDownloadNetworkType)
+    
+    let peers: AutomaticDownloadPeers
     let size: Int32
+    let predownload: Bool
     
     switch category {
         case .photo:
-            cellular = AutomaticDownloadPeers(
-                contacts: settings.peers.contacts.photo.cellular,
-                otherPrivate: settings.peers.otherPrivate.photo.cellular,
-                groups: settings.peers.groups.photo.cellular,
-                channels: settings.peers.channels.photo.cellular
-            )
-            wifi = AutomaticDownloadPeers(
-                contacts: settings.peers.contacts.photo.wifi,
-                otherPrivate: settings.peers.otherPrivate.photo.wifi,
-                groups: settings.peers.groups.photo.wifi,
-                channels: settings.peers.channels.photo.wifi
-            )
-            size = settings.peers.contacts.photo.sizeLimit
+            peers = AutomaticDownloadPeers(category: categories.photo)
+            size = categories.photo.sizeLimit
+            predownload = categories.photo.predownload
         case .video:
-            cellular = AutomaticDownloadPeers(
-                contacts: settings.peers.contacts.video.cellular,
-                otherPrivate: settings.peers.otherPrivate.video.cellular,
-                groups: settings.peers.groups.video.cellular,
-                channels: settings.peers.channels.video.cellular
-            )
-            wifi = AutomaticDownloadPeers(
-                contacts: settings.peers.contacts.video.wifi,
-                otherPrivate: settings.peers.otherPrivate.video.wifi,
-                groups: settings.peers.groups.video.wifi,
-                channels: settings.peers.channels.video.wifi
-            )
-            size = settings.peers.contacts.video.sizeLimit
+            peers = AutomaticDownloadPeers(category: categories.video)
+            size = categories.video.sizeLimit
+            predownload = categories.video.predownload
         case .file:
-            cellular = AutomaticDownloadPeers(
-                contacts: settings.peers.contacts.file.cellular,
-                otherPrivate: settings.peers.otherPrivate.file.cellular,
-                groups: settings.peers.groups.file.cellular,
-                channels: settings.peers.channels.file.cellular
-            )
-            wifi = AutomaticDownloadPeers(
-                contacts: settings.peers.contacts.file.wifi,
-                otherPrivate: settings.peers.otherPrivate.file.wifi,
-                groups: settings.peers.groups.file.wifi,
-                channels: settings.peers.channels.file.wifi
-            )
-            size = settings.peers.contacts.file.sizeLimit
-        case .voiceMessage:
-            cellular = AutomaticDownloadPeers(
-                contacts: settings.peers.contacts.voiceMessage.cellular,
-                otherPrivate: settings.peers.otherPrivate.voiceMessage.cellular,
-                groups: settings.peers.groups.voiceMessage.cellular,
-                channels: settings.peers.channels.voiceMessage.cellular
-            )
-            wifi = AutomaticDownloadPeers(
-                contacts: settings.peers.contacts.voiceMessage.wifi,
-                otherPrivate: settings.peers.otherPrivate.voiceMessage.wifi,
-                groups: settings.peers.groups.voiceMessage.wifi,
-                channels: settings.peers.channels.voiceMessage.wifi
-            )
-            size = settings.peers.contacts.voiceMessage.sizeLimit
-        case .videoMessage:
-            cellular = AutomaticDownloadPeers(
-                contacts: settings.peers.contacts.videoMessage.cellular,
-                otherPrivate: settings.peers.otherPrivate.videoMessage.cellular,
-                groups: settings.peers.groups.videoMessage.cellular,
-                channels: settings.peers.channels.videoMessage.cellular
-            )
-            wifi = AutomaticDownloadPeers(
-                contacts: settings.peers.contacts.videoMessage.wifi,
-                otherPrivate: settings.peers.otherPrivate.videoMessage.wifi,
-                groups: settings.peers.groups.videoMessage.wifi,
-                channels: settings.peers.channels.videoMessage.wifi
-            )
-            size = settings.peers.contacts.videoMessage.sizeLimit
+            peers = AutomaticDownloadPeers(category: categories.file)
+            size = categories.file.sizeLimit
+            predownload = categories.file.predownload
     }
     
-    entries.append(.cellularHeader(presentationData.theme, presentationData.strings.AutoDownloadSettings_Cellular))
-    entries.append(.cellularContacts(presentationData.theme, presentationData.strings.AutoDownloadSettings_Contacts, cellular.contacts))
-    entries.append(.cellularOtherPrivate(presentationData.theme, presentationData.strings.AutoDownloadSettings_PrivateChats, cellular.otherPrivate))
-    entries.append(.cellularGroups(presentationData.theme, presentationData.strings.AutoDownloadSettings_GroupChats, cellular.groups))
-    entries.append(.cellularChannels(presentationData.theme, presentationData.strings.AutoDownloadSettings_Channels, cellular.channels))
+    let downloadTitle: String
+    var sizeTitle: String?
+    switch category {
+        case .photo:
+            downloadTitle = presentationData.strings.AutoDownloadSettings_AutodownloadPhotos
+        case .video:
+            downloadTitle = presentationData.strings.AutoDownloadSettings_AutodownloadVideos
+            sizeTitle = presentationData.strings.AutoDownloadSettings_MaxVideoSize
+        case .file:
+            downloadTitle = presentationData.strings.AutoDownloadSettings_AutodownloadFiles
+            sizeTitle = presentationData.strings.AutoDownloadSettings_MaxFileSize
+    }
     
-    entries.append(.wifiHeader(presentationData.theme, presentationData.strings.AutoDownloadSettings_WiFi))
-    entries.append(.wifiContacts(presentationData.theme, presentationData.strings.AutoDownloadSettings_Contacts, wifi.contacts))
-    entries.append(.wifiOtherPrivate(presentationData.theme, presentationData.strings.AutoDownloadSettings_PrivateChats, wifi.otherPrivate))
-    entries.append(.wifiGroups(presentationData.theme, presentationData.strings.AutoDownloadSettings_GroupChats, wifi.groups))
-    entries.append(.wifiChannels(presentationData.theme, presentationData.strings.AutoDownloadSettings_Channels, wifi.channels))
+    entries.append(.peerHeader(presentationData.theme, downloadTitle))
+    entries.append(.peerContacts(presentationData.theme, presentationData.strings.AutoDownloadSettings_Contacts, peers.contacts))
+    entries.append(.peerOtherPrivate(presentationData.theme, presentationData.strings.AutoDownloadSettings_PrivateChats, peers.otherPrivate))
+    entries.append(.peerGroups(presentationData.theme, presentationData.strings.AutoDownloadSettings_GroupChats, peers.groups))
+    entries.append(.peerChannels(presentationData.theme, presentationData.strings.AutoDownloadSettings_Channels, peers.channels))
     
     switch category {
-        case .file, .video:
-            entries.append(.sizeHeader(presentationData.theme, presentationData.strings.AutoDownloadSettings_LimitBySize))
-            let text: String
-            if size == Int32.max {
-                text = presentationData.strings.AutoDownloadSettings_Unlimited
-            } else {
-                text = presentationData.strings.AutoDownloadSettings_UpTo(dataSizeString(Int(size))).0
+        case .video, .file:
+            if let sizeTitle = sizeTitle {
+                entries.append(.sizeHeader(presentationData.theme, sizeTitle))
             }
-            entries.append(.sizeItem(presentationData.theme, text, size))
+            
+            let sizeText: String
+            if size == Int32.max {
+                sizeText = autodownloadDataSizeString(1536 * 1024 * 1024, decimalSeparator: presentationData.dateTimeFormat.decimalSeparator)
+            } else {
+                sizeText = autodownloadDataSizeString(Int64(size), decimalSeparator: presentationData.dateTimeFormat.decimalSeparator)
+            }
+            let text = presentationData.strings.AutoDownloadSettings_UpTo(sizeText).0
+            entries.append(.sizeItem(presentationData.theme, presentationData.dateTimeFormat.decimalSeparator, text, size))
+            if #available(iOSApplicationExtension 10.3, *), category == .video {
+                entries.append(.sizePreload(presentationData.theme, presentationData.strings.AutoDownloadSettings_PreloadVideo, predownload, size > 2 * 1024 * 1024))
+                entries.append(.sizePreloadInfo(presentationData.theme, presentationData.strings.AutoDownloadSettings_PreloadVideoInfo(sizeText).0))
+            }
         default:
             break
     }
@@ -344,210 +281,132 @@ private func autodownloadMediaCategoryControllerEntries(presentationData: Presen
     return entries
 }
 
-func autodownloadMediaCategoryController(account: Account, category: AutomaticDownloadCategory) -> ViewController {
-    let arguments = AutodownloadMediaCategoryControllerArguments(toggle: { connection, type in
-        let _ = updateMediaDownloadSettingsInteractively(postbox: account.postbox, { settings in
+func autodownloadMediaCategoryController(context: AccountContext, connectionType: AutomaticDownloadConnectionType, category: AutomaticDownloadCategory) -> ViewController {
+    let arguments = AutodownloadMediaCategoryControllerArguments(togglePeer: { type in
+        let _ = updateMediaDownloadSettingsInteractively(accountManager: context.sharedContext.accountManager, { settings in
             var settings = settings
+            var categories = effectiveAutodownloadCategories(settings: settings, networkType: connectionType.automaticDownloadNetworkType)
             switch category {
                 case .photo:
                     switch type {
                         case .contact:
-                            switch connection {
-                                case .cellular:
-                                    settings.peers.contacts.photo.cellular = !settings.peers.contacts.photo.cellular
-                                case .wifi:
-                                    settings.peers.contacts.photo.wifi = !settings.peers.contacts.photo.wifi
-                            }
+                            categories.photo.contacts = !categories.photo.contacts
                         case .otherPrivate:
-                            switch connection {
-                                case .cellular:
-                                    settings.peers.otherPrivate.photo.cellular = !settings.peers.otherPrivate.photo.cellular
-                                case .wifi:
-                                    settings.peers.otherPrivate.photo.wifi = !settings.peers.otherPrivate.photo.wifi
-                            }
+                            categories.photo.otherPrivate = !categories.photo.otherPrivate
                         case .group:
-                            switch connection {
-                                case .cellular:
-                                    settings.peers.groups.photo.cellular = !settings.peers.groups.photo.cellular
-                                case .wifi:
-                                    settings.peers.groups.photo.wifi = !settings.peers.groups.photo.wifi
-                            }
+                            categories.photo.groups = !categories.photo.groups
                         case .channel:
-                            switch connection {
-                                case .cellular:
-                                    settings.peers.channels.photo.cellular = !settings.peers.channels.photo.cellular
-                                case .wifi:
-                                    settings.peers.channels.photo.wifi = !settings.peers.channels.photo.wifi
-                            }
+                            categories.photo.channels = !categories.photo.channels
                     }
                 case .video:
                     switch type {
-                    case .contact:
-                        switch connection {
-                        case .cellular:
-                            settings.peers.contacts.video.cellular = !settings.peers.contacts.video.cellular
-                        case .wifi:
-                            settings.peers.contacts.video.wifi = !settings.peers.contacts.video.wifi
-                        }
-                    case .otherPrivate:
-                        switch connection {
-                        case .cellular:
-                            settings.peers.otherPrivate.video.cellular = !settings.peers.otherPrivate.video.cellular
-                        case .wifi:
-                            settings.peers.otherPrivate.video.wifi = !settings.peers.otherPrivate.video.wifi
-                        }
-                    case .group:
-                        switch connection {
-                        case .cellular:
-                            settings.peers.groups.video.cellular = !settings.peers.groups.video.cellular
-                        case .wifi:
-                            settings.peers.groups.video.wifi = !settings.peers.groups.video.wifi
-                        }
-                    case .channel:
-                        switch connection {
-                        case .cellular:
-                            settings.peers.channels.video.cellular = !settings.peers.channels.video.cellular
-                        case .wifi:
-                            settings.peers.channels.video.wifi = !settings.peers.channels.video.wifi
-                        }
-                    }
+                        case .contact:
+                            categories.video.contacts = !categories.video.contacts
+                        case .otherPrivate:
+                            categories.video.otherPrivate = !categories.video.otherPrivate
+                        case .group:
+                            categories.video.groups = !categories.video.groups
+                        case .channel:
+                            categories.video.channels = !categories.video.channels
+                }
                 case .file:
                     switch type {
-                    case .contact:
-                        switch connection {
-                        case .cellular:
-                            settings.peers.contacts.file.cellular = !settings.peers.contacts.file.cellular
-                        case .wifi:
-                            settings.peers.contacts.file.wifi = !settings.peers.contacts.file.wifi
-                        }
-                    case .otherPrivate:
-                        switch connection {
-                        case .cellular:
-                            settings.peers.otherPrivate.file.cellular = !settings.peers.otherPrivate.file.cellular
-                        case .wifi:
-                            settings.peers.otherPrivate.file.wifi = !settings.peers.otherPrivate.file.wifi
-                        }
-                    case .group:
-                        switch connection {
-                        case .cellular:
-                            settings.peers.groups.file.cellular = !settings.peers.groups.file.cellular
-                        case .wifi:
-                            settings.peers.groups.file.wifi = !settings.peers.groups.file.wifi
-                        }
-                    case .channel:
-                        switch connection {
-                        case .cellular:
-                            settings.peers.channels.file.cellular = !settings.peers.channels.file.cellular
-                        case .wifi:
-                            settings.peers.channels.file.wifi = !settings.peers.channels.file.wifi
-                        }
-                    }
-                case .voiceMessage:
-                    switch type {
-                    case .contact:
-                        switch connection {
-                        case .cellular:
-                            settings.peers.contacts.voiceMessage.cellular = !settings.peers.contacts.voiceMessage.cellular
-                        case .wifi:
-                            settings.peers.contacts.voiceMessage.wifi = !settings.peers.contacts.voiceMessage.wifi
-                        }
-                    case .otherPrivate:
-                        switch connection {
-                        case .cellular:
-                            settings.peers.otherPrivate.voiceMessage.cellular = !settings.peers.otherPrivate.voiceMessage.cellular
-                        case .wifi:
-                            settings.peers.otherPrivate.voiceMessage.wifi = !settings.peers.otherPrivate.voiceMessage.wifi
-                        }
-                    case .group:
-                        switch connection {
-                        case .cellular:
-                            settings.peers.groups.voiceMessage.cellular = !settings.peers.groups.voiceMessage.cellular
-                        case .wifi:
-                            settings.peers.groups.voiceMessage.wifi = !settings.peers.groups.voiceMessage.wifi
-                        }
-                    case .channel:
-                        switch connection {
-                        case .cellular:
-                            settings.peers.channels.voiceMessage.cellular = !settings.peers.channels.voiceMessage.cellular
-                        case .wifi:
-                            settings.peers.channels.voiceMessage.wifi = !settings.peers.channels.voiceMessage.wifi
-                        }
-                    }
-                case .videoMessage:
-                    switch type {
-                    case .contact:
-                        switch connection {
-                        case .cellular:
-                            settings.peers.contacts.videoMessage.cellular = !settings.peers.contacts.videoMessage.cellular
-                        case .wifi:
-                            settings.peers.contacts.videoMessage.wifi = !settings.peers.contacts.videoMessage.wifi
-                        }
-                    case .otherPrivate:
-                        switch connection {
-                        case .cellular:
-                            settings.peers.otherPrivate.videoMessage.cellular = !settings.peers.otherPrivate.videoMessage.cellular
-                        case .wifi:
-                            settings.peers.otherPrivate.videoMessage.wifi = !settings.peers.otherPrivate.videoMessage.wifi
-                        }
-                    case .group:
-                        switch connection {
-                        case .cellular:
-                            settings.peers.groups.videoMessage.cellular = !settings.peers.groups.videoMessage.cellular
-                        case .wifi:
-                            settings.peers.groups.videoMessage.wifi = !settings.peers.groups.videoMessage.wifi
-                        }
-                    case .channel:
-                        switch connection {
-                        case .cellular:
-                            settings.peers.channels.videoMessage.cellular = !settings.peers.channels.videoMessage.cellular
-                        case .wifi:
-                            settings.peers.channels.videoMessage.wifi = !settings.peers.channels.videoMessage.wifi
-                        }
-                    }
+                        case .contact:
+                            categories.file.contacts = !categories.file.contacts
+                        case .otherPrivate:
+                            categories.file.otherPrivate = !categories.file.otherPrivate
+                        case .group:
+                            categories.file.groups = !categories.file.groups
+                        case .channel:
+                            categories.file.channels = !categories.file.channels
+                }
+            }
+            switch connectionType {
+                case .cellular:
+                    settings.cellular.preset = .custom
+                    settings.cellular.custom = categories
+                case .wifi:
+                    settings.wifi.preset = .custom
+                    settings.wifi.custom = categories
             }
             return settings
         }).start()
     }, adjustSize: { size in
-        let _ = updateMediaDownloadSettingsInteractively(postbox: account.postbox, { settings in
+        let _ = updateMediaDownloadSettingsInteractively(accountManager: context.sharedContext.accountManager, { settings in
             var settings = settings
+            var categories = effectiveAutodownloadCategories(settings: settings, networkType: connectionType.automaticDownloadNetworkType)
             switch category {
                 case .photo:
-                    settings.peers.contacts.photo.sizeLimit = size
-                    settings.peers.otherPrivate.photo.sizeLimit = size
-                    settings.peers.groups.photo.sizeLimit = size
-                    settings.peers.channels.photo.sizeLimit = size
+                    categories.photo.sizeLimit = size
                 case .video:
-                    settings.peers.contacts.video.sizeLimit = size
-                    settings.peers.otherPrivate.video.sizeLimit = size
-                    settings.peers.groups.video.sizeLimit = size
-                    settings.peers.channels.video.sizeLimit = size
+                    categories.video.sizeLimit = size
                 case .file:
-                    settings.peers.contacts.file.sizeLimit = size
-                    settings.peers.otherPrivate.file.sizeLimit = size
-                    settings.peers.groups.file.sizeLimit = size
-                    settings.peers.channels.file.sizeLimit = size
-                case .videoMessage:
-                    settings.peers.contacts.videoMessage.sizeLimit = size
-                    settings.peers.otherPrivate.videoMessage.sizeLimit = size
-                    settings.peers.groups.videoMessage.sizeLimit = size
-                    settings.peers.channels.videoMessage.sizeLimit = size
-                case .voiceMessage:
-                    settings.peers.contacts.voiceMessage.sizeLimit = size
-                    settings.peers.otherPrivate.voiceMessage.sizeLimit = size
-                    settings.peers.groups.voiceMessage.sizeLimit = size
-                    settings.peers.channels.voiceMessage.sizeLimit = size
+                    categories.file.sizeLimit = size
+            }
+            switch connectionType {
+                case .cellular:
+                    settings.cellular.preset = .custom
+                    settings.cellular.custom = categories
+                case .wifi:
+                    settings.wifi.preset = .custom
+                    settings.wifi.custom = categories
+            }
+            return settings
+        }).start()
+    }, toggleVideoPreload: {
+        let _ = updateMediaDownloadSettingsInteractively(accountManager: context.sharedContext.accountManager, { settings in
+            var settings = settings
+            var categories = effectiveAutodownloadCategories(settings: settings, networkType: connectionType.automaticDownloadNetworkType)
+            switch category {
+                case .photo:
+                    categories.photo.predownload = !categories.photo.predownload
+                case .video:
+                    categories.video.predownload = !categories.video.predownload
+                case .file:
+                    categories.file.predownload = !categories.file.predownload
+            }
+            switch connectionType {
+                case .cellular:
+                    settings.cellular.preset = .custom
+                    settings.cellular.custom = categories
+                case .wifi:
+                    settings.wifi.preset = .custom
+                    settings.wifi.custom = categories
             }
             return settings
         }).start()
     })
     
-    let signal = combineLatest((account.applicationContext as! TelegramApplicationContext).presentationData, account.postbox.preferencesView(keys: [ApplicationSpecificPreferencesKeys.automaticMediaDownloadSettings])) |> deliverOnMainQueue
-        |> map { presentationData, prefs -> (ItemListControllerState, (ItemListNodeState<AutodownloadMediaCategoryEntry>, AutodownloadMediaCategoryEntry.ItemGenerationArguments)) in
-            let automaticMediaDownloadSettings: AutomaticMediaDownloadSettings
-            if let value = prefs.values[ApplicationSpecificPreferencesKeys.automaticMediaDownloadSettings] as? AutomaticMediaDownloadSettings {
+    let currentAutodownloadSettings = {
+        return context.sharedContext.accountManager.sharedData(keys: [ApplicationSpecificSharedDataKeys.automaticMediaDownloadSettings])
+        |> take(1)
+        |> map { sharedData -> MediaAutoDownloadSettings in
+            if let value = sharedData.entries[ApplicationSpecificSharedDataKeys.automaticMediaDownloadSettings] as? MediaAutoDownloadSettings {
+                return value
+            } else {
+                return .defaultSettings
+            }
+        }
+    }
+    
+    let initialValuePromise: Promise<MediaAutoDownloadSettings> = Promise()
+    initialValuePromise.set(currentAutodownloadSettings())
+    
+    let signal = combineLatest(context.sharedContext.presentationData, context.sharedContext.accountManager.sharedData(keys: [SharedDataKeys.autodownloadSettings, ApplicationSpecificSharedDataKeys.automaticMediaDownloadSettings])) |> deliverOnMainQueue
+        |> map { presentationData, sharedData -> (ItemListControllerState, (ItemListNodeState<AutodownloadMediaCategoryEntry>, AutodownloadMediaCategoryEntry.ItemGenerationArguments)) in
+            var automaticMediaDownloadSettings: MediaAutoDownloadSettings
+            if let value = sharedData.entries[ApplicationSpecificSharedDataKeys.automaticMediaDownloadSettings] as? MediaAutoDownloadSettings {
                 automaticMediaDownloadSettings = value
             } else {
-                automaticMediaDownloadSettings = AutomaticMediaDownloadSettings.defaultSettings
+                automaticMediaDownloadSettings = .defaultSettings
+            }
+            
+            var autodownloadSettings: AutodownloadSettings
+            if let value = sharedData.entries[SharedDataKeys.autodownloadSettings] as? AutodownloadSettings {
+                autodownloadSettings = value
+                automaticMediaDownloadSettings = automaticMediaDownloadSettings.updatedWithAutodownloadSettings(autodownloadSettings)
+            } else {
+                autodownloadSettings = .defaultSettings
             }
             
             let title: String
@@ -558,19 +417,34 @@ func autodownloadMediaCategoryController(account: Account, category: AutomaticDo
                     title = presentationData.strings.AutoDownloadSettings_VideosTitle
                 case .file:
                     title = presentationData.strings.AutoDownloadSettings_DocumentsTitle
-                case .voiceMessage:
-                    title = presentationData.strings.AutoDownloadSettings_VoiceMessagesTitle
-                case .videoMessage:
-                    title = presentationData.strings.AutoDownloadSettings_VideoMessagesTitle
             }
             
             let controllerState = ItemListControllerState(theme: presentationData.theme, title: .text(title), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back), animateChanges: false)
-            let listState = ItemListNodeState(entries: autodownloadMediaCategoryControllerEntries(presentationData: presentationData, category: category, settings: automaticMediaDownloadSettings), style: .blocks, emptyStateItem: nil, animateChanges: false)
+            let listState = ItemListNodeState(entries: autodownloadMediaCategoryControllerEntries(presentationData: presentationData, connectionType: connectionType, category: category, settings: automaticMediaDownloadSettings), style: .blocks, emptyStateItem: nil, animateChanges: false)
             
             return (controllerState, (listState, arguments))
     }
     
-    let controller = ItemListController(account: account, state: signal)
+    let controller = ItemListController(context: context, state: signal)
+    controller.didDisappear = { _ in
+        let _ = (combineLatest(initialValuePromise.get() |> take(1), currentAutodownloadSettings())
+        |> mapToSignal { initialValue, currentValue -> Signal<Void, NoError> in
+            let initialConnection = initialValue.connectionSettings(for: connectionType.automaticDownloadNetworkType)
+            let currentConnection = currentValue.connectionSettings(for: connectionType.automaticDownloadNetworkType)
+            if currentConnection != initialConnection, let categories = currentConnection.custom, currentConnection.preset == .custom {
+                let preset: SavedAutodownloadPreset
+                switch connectionType {
+                    case .cellular:
+                        preset = .medium
+                    case .wifi:
+                        preset = .high
+                }
+                let settings = AutodownloadPresetSettings(disabled: false, photoSizeMax: categories.photo.sizeLimit, videoSizeMax: categories.video.sizeLimit, fileSizeMax: categories.file.sizeLimit, preloadLargeVideo: categories.video.predownload, lessDataForPhoneCalls: false)
+                return saveAutodownloadSettings(account: context.account, preset: preset, settings: settings)
+            }
+            return .complete()
+        }).start()
+    }
     return controller
 }
 

@@ -118,7 +118,7 @@ class RecordingControllerNode: ASDisplayNode {
         let sideInset: CGFloat = 12
         let avatarSize: CGFloat = 40
         avatarNode.frame = CGRect(origin: CGPoint(x: sideInset, y: 5.0), size: CGSize(width: avatarSize, height: avatarSize))
-        avatarNode.setPeer(account: account, peer: params.peer)
+        avatarNode.setPeer(account: account, theme: presentationData.theme, peer: params.peer)
         
         let titleSize = CGSize(width: contentSize.width - sideInset * 3 - avatarSize, height: 20)
         titleNode.frame = CGRect(origin: CGPoint(x: sideInset * 2 + avatarSize, y: 4), size: titleSize)

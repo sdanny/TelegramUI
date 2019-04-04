@@ -27,7 +27,7 @@ private let rootNavigationBar = PresentationThemeRootNavigationBar(
     disabledButtonColor: UIColor(rgb: 0x525252),
     primaryTextColor: accentColor,
     secondaryTextColor: UIColor(rgb: 0xffffff, alpha: 0.5),
-    controlColor: accentColor,
+    controlColor: UIColor(rgb: 0x767677),
     accentTextColor: accentColor,
     backgroundColor: UIColor(rgb: 0x1c1c1d),
     separatorColor: UIColor(rgb: 0x000000),
@@ -45,6 +45,11 @@ private let activeNavigationSearchBar = PresentationThemeActiveNavigationSearchB
     inputIconColor: UIColor(rgb: 0x5e5e5e),
     inputClearButtonColor: UIColor(rgb: 0x5e5e5e),
     separatorColor: UIColor(rgb: 0x000000)
+)
+
+private let auth = PresentationThemeAuth(
+    introStartButton: accentColor,
+    introDotColor: UIColor(rgb: 0x5e5e5e)
 )
 
 private let rootController = PresentationThemeRootController(
@@ -153,6 +158,8 @@ private let bubble = PresentationThemeChatBubble(
     outgoingLinkHighlightColor: accentColor.withAlphaComponent(0.5),
     infoPrimaryTextColor: UIColor(rgb: 0xffffff),
     infoLinkTextColor: accentColor,
+    incomingTextHighlightColor: UIColor(rgb: 0xffe438),
+    outgoingTextHighlightColor: UIColor(rgb: 0xffe438),
     incomingAccentTextColor: UIColor(rgb: 0xffffff),
     outgoingAccentTextColor: UIColor(rgb: 0xffffff),
     incomingAccentControlColor: UIColor(rgb: 0xffffff),
@@ -173,16 +180,16 @@ private let bubble = PresentationThemeChatBubble(
     incomingFileDurationColor: UIColor(rgb: 0xffffff, alpha: 0.5),
     outgoingFileDurationColor: UIColor(rgb: 0xffffff, alpha: 0.5),
     shareButtonFillColor: PresentationThemeVariableColor(withWallpaper: UIColor(rgb: 0x000000, alpha: 0.5), withoutWallpaper: UIColor(rgb: 0x000000, alpha: 0.5)),
-    shareButtonStrokeColor: UIColor(rgb: 0xb2b2b2, alpha: 0.18),
-    shareButtonForegroundColor: UIColor(rgb: 0xb2b2b2), //!!!
+    shareButtonStrokeColor: PresentationThemeVariableColor(withWallpaper: UIColor(rgb: 0xb2b2b2, alpha: 0.18), withoutWallpaper: UIColor(rgb: 0xb2b2b2, alpha: 0.18)),
+    shareButtonForegroundColor: PresentationThemeVariableColor(withWallpaper: UIColor(rgb: 0xb2b2b2), withoutWallpaper: UIColor(rgb: 0xb2b2b2)), //!!!
     mediaOverlayControlBackgroundColor: UIColor(white: 0.0, alpha: 0.6), //!!!
     mediaOverlayControlForegroundColor: UIColor(white: 1.0, alpha: 1.0), //!!!
     actionButtonsIncomingFillColor: PresentationThemeVariableColor(withWallpaper: UIColor(rgb: 0x000000, alpha: 0.5), withoutWallpaper: UIColor(rgb: 0x000000, alpha: 0.5)),
-    actionButtonsIncomingStrokeColor: UIColor(rgb: 0xb2b2b2, alpha: 0.18),
-    actionButtonsIncomingTextColor: UIColor(rgb: 0xffffff),
+    actionButtonsIncomingStrokeColor: PresentationThemeVariableColor(color: UIColor(rgb: 0xb2b2b2, alpha: 0.18)),
+    actionButtonsIncomingTextColor: PresentationThemeVariableColor(color: UIColor(rgb: 0xffffff)),
     actionButtonsOutgoingFillColor: PresentationThemeVariableColor(withWallpaper: UIColor(rgb: 0x000000, alpha: 0.5), withoutWallpaper: UIColor(rgb: 0x000000, alpha: 0.5)),
-    actionButtonsOutgoingStrokeColor: UIColor(rgb: 0xb2b2b2, alpha: 0.18),
-    actionButtonsOutgoingTextColor: UIColor(rgb: 0xffffff),
+    actionButtonsOutgoingStrokeColor: PresentationThemeVariableColor(color: UIColor(rgb: 0xb2b2b2, alpha: 0.18)),
+    actionButtonsOutgoingTextColor: PresentationThemeVariableColor(color: UIColor(rgb: 0xffffff)),
     selectionControlBorderColor: .white,
     selectionControlFillColor: accentColor,
     selectionControlForegroundColor: .black,
@@ -200,7 +207,7 @@ private let serviceMessage = PresentationThemeServiceMessage(
     unreadBarFillColor: UIColor(rgb: 0x1b1b1b), //!!!
     unreadBarStrokeColor: UIColor(rgb: 0x000000),
     unreadBarTextColor: UIColor(rgb: 0xb2b2b2), //!!!
-    dateTextColor: UIColor(rgb: 0xb2b2b2)
+    dateTextColor: PresentationThemeVariableColor(color: UIColor(rgb: 0xb2b2b2))
 )
 
 private let inputPanelMediaRecordingControl = PresentationThemeChatInputPanelMediaRecordingControl(
@@ -314,6 +321,7 @@ let defaultDarkPresentationTheme = PresentationTheme(
     name: .builtin(.nightGrayscale),
     overallDarkAppearance: true,
     allowsCustomWallpapers: false,
+    auth: auth,
     rootController: rootController,
     list: list,
     chatList: chatList,

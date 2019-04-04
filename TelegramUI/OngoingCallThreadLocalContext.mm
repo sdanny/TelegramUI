@@ -249,7 +249,6 @@ static int callControllerDataSavingForType(OngoingCallDataSaving type) {
         if (proxy != nil) {
             _controller->SetProxy(tgvoip::PROXY_SOCKS5, proxy.host.UTF8String, (uint16_t)proxy.port, proxy.username.UTF8String ?: "", proxy.password.UTF8String ?: "");
         }
-        _controller->SetNetworkType(callControllerNetworkTypeForType(networkType));
         
         auto callbacks = tgvoip::VoIPController::Callbacks();
         callbacks.connectionStateChanged = &controllerStateCallback;
@@ -281,7 +280,7 @@ static int callControllerDataSavingForType(OngoingCallDataSaving type) {
     assert([_queue isCurrent]);
     removeContext(_contextId);
     if (_controller != NULL) {
-        [self stop];
+        [self stop:nil];
     }
 }
 
@@ -313,6 +312,7 @@ static int callControllerDataSavingForType(OngoingCallDataSaving type) {
     if (_controller != nil) {
         _controller->SetConfig(config);
         
+        _controller->SetNetworkType(callControllerNetworkTypeForType(_networkType));
         _controller->SetEncryptionKey((char *)key.bytes, isOutgoing);
         _controller->SetRemoteEndpoints(endpoints, allowP2P, maxLayer);
         _controller->Start();
@@ -323,7 +323,7 @@ static int callControllerDataSavingForType(OngoingCallDataSaving type) {
     [[BackObserver sharedObserver] update];
 }
 
-- (void)stop {
+- (void)stop:(void (^)(NSString *, int64_t, int64_t, int64_t, int64_t))completion {
     if (_controller != nil) {
         _controller->Stop();
         
@@ -337,9 +337,17 @@ static int callControllerDataSavingForType(OngoingCallDataSaving type) {
         delete _controller;
         _controller = NULL;
         
-        if (_callEnded) {
-            _callEnded(debugLog, stats.bytesSentWifi, stats.bytesRecvdWifi, stats.bytesSentMobile, stats.bytesRecvdMobile);
+        if (completion) {
+            completion(debugLog, stats.bytesSentWifi, stats.bytesRecvdWifi, stats.bytesSentMobile, stats.bytesRecvdMobile);
         }
+    }
+}
+    
+- (bool)needRate {
+    if (_controller != nil) {
+        return _controller->NeedRate();
+    } else {
+        return false;
     }
 }
 

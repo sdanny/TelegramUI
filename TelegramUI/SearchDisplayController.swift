@@ -45,6 +45,15 @@ final class SearchDisplayController {
             self?.searchBar.prefixString = prefix
             self?.searchBar.text = query
         }
+        self.contentNode.setPlaceholder = { [weak self] string in
+            guard string != self?.searchBar.placeholderString?.string else {
+                return
+            }
+            if let mutableAttributedString = self?.searchBar.placeholderString?.mutableCopy() as? NSMutableAttributedString {
+                mutableAttributedString.mutableString.setString(string)
+                self?.searchBar.placeholderString = mutableAttributedString
+            }
+        }
         
         self.isSearchingDisposable = (contentNode.isSearching
         |> deliverOnMainQueue).start(next: { [weak self] value in
@@ -76,7 +85,7 @@ final class SearchDisplayController {
         if case .navigation = self.mode {
             searchBarFrame = CGRect(x: 0.0, y: 0.0, width: layout.size.width, height: 54.0)
         } else {
-            searchBarFrame = navigationBarFrame //CGRect(x: 0.0, y: navigationBarFrame.height - 54.0, width: layout.size.width, height: 54.0)
+            searchBarFrame = navigationBarFrame
         }
         transition.updateFrame(node: self.searchBar, frame: searchBarFrame)
         self.searchBar.updateLayout(boundingSize: searchBarFrame.size, leftInset: layout.safeInsets.left, rightInset: layout.safeInsets.right, transition: transition)
@@ -84,7 +93,7 @@ final class SearchDisplayController {
         self.containerLayout = (layout, navigationBarFrame.maxY)
         
         transition.updateFrame(node: self.contentNode, frame: CGRect(origin: CGPoint(), size: layout.size))
-        self.contentNode.containerLayoutUpdated(ContainerViewLayout(size: layout.size, metrics: LayoutMetrics(), intrinsicInsets: layout.intrinsicInsets, safeInsets: layout.safeInsets, statusBarHeight: nil, inputHeight: layout.inputHeight, standardInputHeight: layout.standardInputHeight, inputHeightIsInteractivellyChanging: layout.inputHeightIsInteractivellyChanging), navigationBarHeight: navigationBarFrame.maxY, transition: transition)
+        self.contentNode.containerLayoutUpdated(ContainerViewLayout(size: layout.size, metrics: LayoutMetrics(), intrinsicInsets: layout.intrinsicInsets, safeInsets: layout.safeInsets, statusBarHeight: nil, inputHeight: layout.inputHeight, standardInputHeight: layout.standardInputHeight, inputHeightIsInteractivellyChanging: layout.inputHeightIsInteractivellyChanging, inVoiceOver: layout.inVoiceOver), navigationBarHeight: navigationBarFrame.maxY, transition: transition)
     }
     
     func activate(insertSubnode: (ASDisplayNode, Bool) -> Void, placeholder: SearchBarPlaceholderNode) {
@@ -95,9 +104,9 @@ final class SearchDisplayController {
         insertSubnode(self.contentNode, false)
         
         self.contentNode.frame = CGRect(origin: CGPoint(), size: layout.size)
-        self.contentNode.containerLayoutUpdated(ContainerViewLayout(size: layout.size, metrics: LayoutMetrics(), intrinsicInsets: UIEdgeInsets(), safeInsets: layout.safeInsets, statusBarHeight: nil, inputHeight: nil, standardInputHeight: layout.standardInputHeight, inputHeightIsInteractivellyChanging: false), navigationBarHeight: navigationBarHeight, transition: .immediate)
+        self.contentNode.containerLayoutUpdated(ContainerViewLayout(size: layout.size, metrics: LayoutMetrics(), intrinsicInsets: UIEdgeInsets(), safeInsets: layout.safeInsets, statusBarHeight: nil, inputHeight: nil, standardInputHeight: layout.standardInputHeight, inputHeightIsInteractivellyChanging: false, inVoiceOver: false), navigationBarHeight: navigationBarHeight, transition: .immediate)
         
-        let initialTextBackgroundFrame = placeholder.convert(placeholder.backgroundNode.frame, to: nil)//self.contentNode.supernode)
+        let initialTextBackgroundFrame = placeholder.convert(placeholder.backgroundNode.frame, to: nil)
         
         let contentNodePosition = self.contentNode.layer.position
         self.contentNode.layer.animatePosition(from: CGPoint(x: contentNodePosition.x, y: contentNodePosition.y + (initialTextBackgroundFrame.maxY + 8.0 - navigationBarHeight)), to: contentNodePosition, duration: 0.5, timingFunction: kCAMediaTimingFunctionSpring)
@@ -138,7 +147,7 @@ final class SearchDisplayController {
         
         if let placeholder = placeholder {
             let searchBar = self.searchBar
-            searchBar.transitionOut(to: placeholder, transition: animated ? ContainedViewLayoutTransition.animated(duration: 0.5, curve: .spring) : ContainedViewLayoutTransition.immediate, completion: {
+            searchBar.transitionOut(to: placeholder, transition: animated ? .animated(duration: 0.5, curve: .spring) : .immediate, completion: {
                 [weak searchBar] in
                 searchBar?.removeFromSupernode()
             })
@@ -148,7 +157,7 @@ final class SearchDisplayController {
         if animated {
             if let placeholder = placeholder, let (_, navigationBarHeight) = self.containerLayout {
                 let contentNodePosition = self.contentNode.layer.position
-                let targetTextBackgroundFrame = placeholder.convert(placeholder.backgroundNode.frame, to: nil) //self.contentNode.supernode)
+                let targetTextBackgroundFrame = placeholder.convert(placeholder.backgroundNode.frame, to: nil)
                 
                 self.contentNode.layer.animatePosition(from: contentNodePosition, to: CGPoint(x: contentNodePosition.x, y: contentNodePosition.y + (targetTextBackgroundFrame.maxY + 8.0 - navigationBarHeight)), duration: 0.5, timingFunction: kCAMediaTimingFunctionSpring, removeOnCompletion: false)
             }

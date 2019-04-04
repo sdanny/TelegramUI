@@ -35,6 +35,7 @@ struct InstantPageTextImageItem {
 
 struct InstantPageTextAnchorItem {
     let name: String
+    let anchorText: NSAttributedString?
     let empty: Bool
 }
 
@@ -76,6 +77,7 @@ final class InstantPageTextItem: InstantPageItem {
     let rtlLineIndices: Set<Int>
     var frame: CGRect
     let alignment: NSTextAlignment
+    let opaqueBackground: Bool
     let medias: [InstantPageMedia] = []
     let anchors: [String: (Int, Bool)]
     let wantsNode: Bool = false
@@ -86,10 +88,11 @@ final class InstantPageTextItem: InstantPageItem {
         return !self.rtlLineIndices.isEmpty
     }
     
-    init(frame: CGRect, attributedString: NSAttributedString, alignment: NSTextAlignment, lines: [InstantPageTextLine]) {
+    init(frame: CGRect, attributedString: NSAttributedString, alignment: NSTextAlignment, opaqueBackground: Bool, lines: [InstantPageTextLine]) {
         self.attributedString = attributedString
         self.alignment = alignment
         self.frame = frame
+        self.opaqueBackground = opaqueBackground
         self.lines = lines
         var index = 0
         var rtlLineIndices = Set<Int>()
@@ -111,7 +114,7 @@ final class InstantPageTextItem: InstantPageItem {
         context.saveGState()
         context.textMatrix = CGAffineTransform(scaleX: 1.0, y: -1.0)
         context.translateBy(x: self.frame.minX, y: self.frame.minY)
-                
+        
         let clipRect = context.boundingBoxOfClipPath
         
         let upperOriginBound = clipRect.minY - 10.0
@@ -143,7 +146,13 @@ final class InstantPageTextItem: InstantPageItem {
                 context.restoreGState()
             }
             
+            if self.opaqueBackground {
+                context.setBlendMode(.normal)
+            }
             CTLineDraw(line.line, context)
+            if self.opaqueBackground {
+                context.setBlendMode(.copy)
+            }
             
             if !line.strikethroughItems.isEmpty {
                 for item in line.strikethroughItems {
@@ -219,7 +228,13 @@ final class InstantPageTextItem: InstantPageItem {
         if let (index, dict) = self.attributesAtPoint(point) {
             if let _ = dict[NSAttributedStringKey(rawValue: TelegramTextAttributes.URL)] {
                 if let rects = self.attributeRects(name: NSAttributedStringKey(rawValue: TelegramTextAttributes.URL), at: index) {
-                    return rects.map { $0.insetBy(dx: 2.0, dy: -3.0) }
+                    return rects.compactMap { rect in
+                        if rect.width > 5.0 {
+                            return rect.insetBy(dx: 0.0, dy: -3.0)
+                        } else {
+                            return nil
+                        }
+                    }
                 }
             }
         }
@@ -312,7 +327,7 @@ final class InstantPageTextItem: InstantPageItem {
         return false
     }
     
-    func node(account: Account, strings: PresentationStrings, theme: InstantPageTheme, openMedia: @escaping (InstantPageMedia) -> Void, longPressMedia: @escaping (InstantPageMedia) -> Void, openPeer: @escaping (PeerId) -> Void, openUrl: @escaping (InstantPageUrlItem) -> Void, updateWebEmbedHeight: @escaping (CGFloat) -> Void, updateDetailsExpanded: @escaping (Bool) -> Void, currentExpandedDetails: [Int : Bool]?) -> (InstantPageNode & ASDisplayNode)? {
+    func node(context: AccountContext, strings: PresentationStrings, theme: InstantPageTheme, openMedia: @escaping (InstantPageMedia) -> Void, longPressMedia: @escaping (InstantPageMedia) -> Void, openPeer: @escaping (PeerId) -> Void, openUrl: @escaping (InstantPageUrlItem) -> Void, updateWebEmbedHeight: @escaping (CGFloat) -> Void, updateDetailsExpanded: @escaping (Bool) -> Void, currentExpandedDetails: [Int : Bool]?) -> (InstantPageNode & ASDisplayNode)? {
         return nil
     }
     
@@ -361,11 +376,11 @@ final class InstantPageScrollableTextItem: InstantPageScrollableItem {
         context.restoreGState()
     }
     
-    func node(account: Account, strings: PresentationStrings, theme: InstantPageTheme, openMedia: @escaping (InstantPageMedia) -> Void, longPressMedia: @escaping (InstantPageMedia) -> Void, openPeer: @escaping (PeerId) -> Void, openUrl: @escaping (InstantPageUrlItem) -> Void, updateWebEmbedHeight: @escaping (CGFloat) -> Void, updateDetailsExpanded: @escaping (Bool) -> Void, currentExpandedDetails: [Int : Bool]?) -> (ASDisplayNode & InstantPageNode)? {
+    func node(context: AccountContext, strings: PresentationStrings, theme: InstantPageTheme, openMedia: @escaping (InstantPageMedia) -> Void, longPressMedia: @escaping (InstantPageMedia) -> Void, openPeer: @escaping (PeerId) -> Void, openUrl: @escaping (InstantPageUrlItem) -> Void, updateWebEmbedHeight: @escaping (CGFloat) -> Void, updateDetailsExpanded: @escaping (Bool) -> Void, currentExpandedDetails: [Int : Bool]?) -> (ASDisplayNode & InstantPageNode)? {
         var additionalNodes: [InstantPageNode] = []
         for item in additionalItems {
             if item.wantsNode {
-                if let node = item.node(account: account, strings: strings, theme: theme, openMedia: { _ in }, longPressMedia: { _ in }, openPeer: { _ in }, openUrl: { _ in}, updateWebEmbedHeight: { _ in }, updateDetailsExpanded: { _ in }, currentExpandedDetails: nil) {
+                if let node = item.node(context: context, strings: strings, theme: theme, openMedia: { _ in }, longPressMedia: { _ in }, openPeer: { _ in }, openUrl: { _ in}, updateWebEmbedHeight: { _ in }, updateDetailsExpanded: { _ in }, currentExpandedDetails: nil) {
                     node.frame = item.frame
                     additionalNodes.append(node)
                 }
@@ -488,7 +503,6 @@ func attributedStringForRichText(_ text: RichText, styleStack: InstantPageTextSt
                 let descent: CGFloat
                 let width: CGFloat
             }
-            
             var dimensions = dimensions
             if let boundingWidth = boundingWidth {
                 dimensions = dimensions.fittedToWidthOrSmaller(boundingWidth)
@@ -511,7 +525,6 @@ func attributedStringForRichText(_ text: RichText, styleStack: InstantPageTextSt
             let mutableAttributedString = attributedStringForRichText(.plain(" "), styleStack: styleStack, url: url).mutableCopy() as! NSMutableAttributedString
             mutableAttributedString.addAttributes(attrDictionaryDelegate, range: NSMakeRange(0, mutableAttributedString.length))
             return mutableAttributedString
-            //return NSAttributedString(string: " ", attributes: attrDictionaryDelegate)
         case let .anchor(text, name):
             var empty = false
             var text = text
@@ -519,14 +532,15 @@ func attributedStringForRichText(_ text: RichText, styleStack: InstantPageTextSt
                 empty = true
                 text = .plain("\u{200b}")
             }
-            styleStack.push(.anchor(name, empty))
+            let anchorText = !empty ? attributedStringForRichText(text, styleStack: styleStack, url: url) : nil
+            styleStack.push(.anchor(name, anchorText, empty))
             let result = attributedStringForRichText(text, styleStack: styleStack, url: url)
             styleStack.pop()
             return result
     }
 }
 
-func layoutTextItemWithString(_ string: NSAttributedString, boundingWidth: CGFloat, horizontalInset: CGFloat = 0.0, alignment: NSTextAlignment = .natural, offset: CGPoint, media: [MediaId: Media] = [:], webpage: TelegramMediaWebpage? = nil, minimizeWidth: Bool = false, maxNumberOfLines: Int = 0) -> (InstantPageTextItem?, [InstantPageItem], CGSize) {
+func layoutTextItemWithString(_ string: NSAttributedString, boundingWidth: CGFloat, horizontalInset: CGFloat = 0.0, alignment: NSTextAlignment = .natural, offset: CGPoint, media: [MediaId: Media] = [:], webpage: TelegramMediaWebpage? = nil, minimizeWidth: Bool = false, maxNumberOfLines: Int = 0, opaqueBackground: Bool = false) -> (InstantPageTextItem?, [InstantPageItem], CGSize) {
     if string.length == 0 {
         return (nil, [], CGSize())
     }
@@ -688,7 +702,7 @@ func layoutTextItemWithString(_ string: NSAttributedString, boundingWidth: CGFlo
                     markedItems.append(InstantPageTextMarkedItem(frame: CGRect(x: workingLineOrigin.x + x, y: workingLineOrigin.y + delta, width: abs(upperX - lowerX), height: lineHeight), color: color))
                 }
                 if let item = attributes[NSAttributedStringKey.init(rawValue: InstantPageAnchorAttribute)] as? Dictionary<String, Any>, let name = item["name"] as? String, let empty = item["empty"] as? Bool {
-                    anchorItems.append(InstantPageTextAnchorItem(name: name, empty: empty))
+                    anchorItems.append(InstantPageTextAnchorItem(name: name, anchorText: item["text"] as? NSAttributedString, empty: empty))
                 }
             }
             
@@ -736,7 +750,7 @@ func layoutTextItemWithString(_ string: NSAttributedString, boundingWidth: CGFlo
         requiresScroll = true
     }
     
-    let textItem = InstantPageTextItem(frame: CGRect(x: 0.0, y: 0.0, width: textWidth, height: height), attributedString: string, alignment: alignment, lines: lines)
+    let textItem = InstantPageTextItem(frame: CGRect(x: 0.0, y: 0.0, width: textWidth, height: height), attributedString: string, alignment: alignment, opaqueBackground: opaqueBackground, lines: lines)
     if !requiresScroll {
         textItem.frame = textItem.frame.offsetBy(dx: offset.x, dy: offset.y)
     }

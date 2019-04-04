@@ -13,7 +13,7 @@ private let titleFont = Font.medium(15.0)
 private let dateFont = Font.regular(14.0)
 
 final class SecureIdDocumentGalleryFooterContentNode: GalleryFooterContentNode {
-    private let account: Account
+    private let context: AccountContext
     private var theme: PresentationTheme
     private var strings: PresentationStrings
     
@@ -28,8 +28,8 @@ final class SecureIdDocumentGalleryFooterContentNode: GalleryFooterContentNode {
     
     var delete: (() -> Void)?
     
-    init(account: Account, theme: PresentationTheme, strings: PresentationStrings) {
-        self.account = account
+    init(context: AccountContext, theme: PresentationTheme, strings: PresentationStrings) {
+        self.context = context
         self.theme = theme
         self.strings = strings
         
@@ -86,7 +86,8 @@ final class SecureIdDocumentGalleryFooterContentNode: GalleryFooterContentNode {
         }
     }
     
-    override func updateLayout(width: CGFloat, leftInset: CGFloat, rightInset: CGFloat, bottomInset: CGFloat, contentInset: CGFloat, transition: ContainedViewLayoutTransition) -> CGFloat {
+    override func updateLayout(size: CGSize, leftInset: CGFloat, rightInset: CGFloat, bottomInset: CGFloat, contentInset: CGFloat, transition: ContainedViewLayoutTransition) -> CGFloat {
+        let width = size.width
         var panelHeight: CGFloat = 44.0 + bottomInset
         panelHeight += contentInset
         if !self.textNode.isHidden {
@@ -135,7 +136,7 @@ final class SecureIdDocumentGalleryFooterContentNode: GalleryFooterContentNode {
     }
     
     @objc func deleteButtonPressed() {
-        let presentationData = self.account.telegramApplicationContext.currentPresentationData.with { $0 }
+        let presentationData = self.context.sharedContext.currentPresentationData.with { $0 }
         let actionSheet = ActionSheetController(presentationTheme: presentationData.theme)
         let items: [ActionSheetItem] = [
             ActionSheetButtonItem(title: presentationData.strings.Common_Delete, color: .destructive, action: { [weak self, weak actionSheet] in

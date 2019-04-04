@@ -16,11 +16,11 @@ enum SecureIdDocumentFormRequestedData {
 }
 
 final class SecureIdDocumentFormController: FormController<SecureIdDocumentFormState, SecureIdDocumentFormControllerNodeInitParams, SecureIdDocumentFormControllerNode> {
-    private let account: Account
+    private let context: AccountContext
     private var presentationData: PresentationData
     private let updatedValues: ([SecureIdValueWithContext]) -> Void
     
-    private let context: SecureIdAccessContext
+    private let secureIdContext: SecureIdAccessContext
     private let requestedData: SecureIdDocumentFormRequestedData
     private let requestOptionalData: Bool
     private let primaryLanguageByCountry: [String: String]
@@ -29,10 +29,10 @@ final class SecureIdDocumentFormController: FormController<SecureIdDocumentFormS
     
     private var doneItem: UIBarButtonItem?
     
-    init(account: Account, context: SecureIdAccessContext, requestedData: SecureIdDocumentFormRequestedData, requestOptionalData: Bool = false, scrollTo: SecureIdDocumentFormScrollToSubject? = nil, primaryLanguageByCountry: [String: String], values: [SecureIdValueWithContext], updatedValues: @escaping ([SecureIdValueWithContext]) -> Void) {
-        self.account = account
-        self.presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+    init(context: AccountContext, secureIdContext: SecureIdAccessContext, requestedData: SecureIdDocumentFormRequestedData, requestOptionalData: Bool = false, scrollTo: SecureIdDocumentFormScrollToSubject? = nil, primaryLanguageByCountry: [String: String], values: [SecureIdValueWithContext], updatedValues: @escaping ([SecureIdValueWithContext]) -> Void) {
         self.context = context
+        self.presentationData = context.sharedContext.currentPresentationData.with { $0 }
+        self.secureIdContext = secureIdContext
         self.requestedData = requestedData
         self.requestOptionalData = requestOptionalData
         self.primaryLanguageByCountry = primaryLanguageByCountry
@@ -40,7 +40,7 @@ final class SecureIdDocumentFormController: FormController<SecureIdDocumentFormS
         self.updatedValues = updatedValues
         self.scrollTo = scrollTo
         
-        super.init(initParams: SecureIdDocumentFormControllerNodeInitParams(account: account, context: context), presentationData: self.presentationData)
+        super.init(initParams: SecureIdDocumentFormControllerNodeInitParams(context: context, secureIdContext: secureIdContext), presentationData: self.presentationData)
         
         self.supportedOrientations = ViewControllerSupportedOrientations(regularSize: .all, compactSize: .portrait)
         
@@ -93,7 +93,7 @@ final class SecureIdDocumentFormController: FormController<SecureIdDocumentFormS
     
     @objc private func cancelPressed() {
         if self.controllerNode.hasUnsavedData() {
-            self.present(standardTextAlertController(theme: AlertControllerTheme(presentationTheme: self.presentationData.theme), title: self.presentationData.strings.Passport_DiscardMessageTitle, text: self.presentationData.strings.Passport_DiscardMessageDescription, actions: [TextAlertAction(type: .genericAction, title: self.presentationData.strings.Common_Cancel, action: {}), TextAlertAction(type: .defaultAction, title: self.presentationData.strings.Passport_DiscardMessageAction, action: { [weak self] in
+            self.present(textAlertController(context: self.context, title: self.presentationData.strings.Passport_DiscardMessageTitle, text: self.presentationData.strings.Passport_DiscardMessageDescription, actions: [TextAlertAction(type: .genericAction, title: self.presentationData.strings.Common_Cancel, action: {}), TextAlertAction(type: .defaultAction, title: self.presentationData.strings.Passport_DiscardMessageAction, action: { [weak self] in
                 self?.dismiss()
             })]), in: .window(.root))
         } else {

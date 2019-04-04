@@ -165,7 +165,7 @@ final class HorizontalPeerItemNode: ListViewItemNode {
             
             let currentStatusImage: UIImage?
             let timestamp = CFAbsoluteTimeGetCurrent() + NSTimeIntervalSince1970
-            if let presence = item.presence as? TelegramUserPresence {
+            if let presence = item.presence as? TelegramUserPresence, !isServicePeer(item.peer) {
                 let relativeStatus = relativeUserPresenceStatus(presence, relativeTo: Int32(timestamp))
                 switch relativeStatus {
                     case .online:
@@ -189,7 +189,7 @@ final class HorizontalPeerItemNode: ListViewItemNode {
                 if let strongSelf = self {
                     strongSelf.item = item
                     strongSelf.peerNode.theme = itemTheme
-                    strongSelf.peerNode.setup(account: item.account, strings: item.strings, peer: RenderedPeer(peer: item.peer), numberOfLines: 1, synchronousLoad: false)
+                    strongSelf.peerNode.setup(account: item.account, theme: item.theme, strings: item.strings, peer: RenderedPeer(peer: item.peer), numberOfLines: 1, synchronousLoad: false)
                     strongSelf.peerNode.frame = CGRect(origin: CGPoint(), size: itemLayout.size)
                     strongSelf.peerNode.updateSelection(selected: item.isPeerSelected(item.peer.id), animated: false)
                     

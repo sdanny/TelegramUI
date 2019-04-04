@@ -3,6 +3,7 @@ import UIKit
 
 public enum TransformImageResizeMode {
     case fill(UIColor)
+    case aspectFill
     case blurBackground
 }
 
@@ -42,6 +43,6 @@ public struct TransformImageArguments: Equatable {
     }
     
     public static func ==(lhs: TransformImageArguments, rhs: TransformImageArguments) -> Bool {
-        return lhs.imageSize == rhs.imageSize && lhs.boundingSize == rhs.boundingSize && lhs.corners == rhs.corners
+        return lhs.imageSize == rhs.imageSize && lhs.boundingSize == rhs.boundingSize && lhs.corners == rhs.corners && lhs.emptyColor == rhs.emptyColor
     }
 }

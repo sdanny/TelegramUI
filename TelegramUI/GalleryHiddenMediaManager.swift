@@ -4,12 +4,12 @@ import SwiftSignalKit
 import AsyncDisplayKit
 
 enum GalleryHiddenMediaId: Hashable {
-    case chat(MessageId, Media)
+    case chat(AccountRecordId, MessageId, Media)
     
     static func ==(lhs: GalleryHiddenMediaId, rhs: GalleryHiddenMediaId) -> Bool {
         switch lhs {
-            case let .chat(lhsMessageId, lhsMedia):
-                if case let .chat(rhsMessageId, rhsMedia) = rhs, lhsMessageId == rhsMessageId, lhsMedia.isEqual(to: rhsMedia) {
+            case let .chat(lhsAccountId ,lhsMessageId, lhsMedia):
+                if case let .chat(rhsAccountId, rhsMessageId, rhsMedia) = rhs, lhsAccountId == rhsAccountId, lhsMessageId == rhsMessageId, lhsMedia.isEqual(to: rhsMedia) {
                         return true
                     } else {
                         return false
@@ -19,7 +19,7 @@ enum GalleryHiddenMediaId: Hashable {
     
     var hashValue: Int {
         switch self {
-            case let .chat(messageId, _):
+            case let .chat(_, messageId, _):
                 return messageId.hashValue
         }
     }
@@ -42,7 +42,7 @@ private final class GalleryHiddenMediaContext {
 }
 
 protocol GalleryHiddenMediaTarget: class {
-    func getTransitionInfo(messageId: MessageId, media: Media) -> ((UIView) -> Void, ASDisplayNode, () -> UIView?)?
+    func getTransitionInfo(messageId: MessageId, media: Media) -> ((UIView) -> Void, ASDisplayNode, () -> (UIView?, UIView?))?
 }
 
 private final class GalleryHiddenMediaTargetHolder {
@@ -147,7 +147,7 @@ final class GalleryHiddenMediaManager {
         }
     }
     
-    func findTarget(messageId: MessageId, media: Media) -> ((UIView) -> Void, ASDisplayNode, () -> UIView?)? {
+    func findTarget(messageId: MessageId, media: Media) -> ((UIView) -> Void, ASDisplayNode, () -> (UIView?, UIView?))? {
         for i in (0 ..< self.targets.count).reversed() {
             if let holderTarget = self.targets[i].target {
                 if let result = holderTarget.getTransitionInfo(messageId: messageId, media: media) {

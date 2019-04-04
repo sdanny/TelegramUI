@@ -118,7 +118,7 @@ final class ChatMessageWebpageBubbleContentNode: ChatMessageBubbleContentNode {
         super.init()
         
         self.addSubnode(self.contentNode)
-        self.contentNode.openMedia = { [weak self] stream in
+        self.contentNode.openMedia = { [weak self] mode in
             if let strongSelf = self, let item = strongSelf.item {
                 if let webPage = strongSelf.webPage, case let .Loaded(content) = webPage.content {
                     if let image = content.image, let instantPage = content.instantPage {
@@ -133,7 +133,7 @@ final class ChatMessageWebpageBubbleContentNode: ChatMessageBubbleContentNode {
                                 break
                         }
                         if !isGallery {
-                            item.controllerInteraction.openInstantPage(item.message)
+                            item.controllerInteraction.openInstantPage(item.message, item.associatedData)
                             return
                         }
                     } else if content.type == "telegram_background" {
@@ -141,7 +141,16 @@ final class ChatMessageWebpageBubbleContentNode: ChatMessageBubbleContentNode {
                         return
                     }
                 }
-                let _ = item.controllerInteraction.openMessage(item.message, stream ? .stream : .default)
+                let openChatMessageMode: ChatControllerInteractionOpenMessageMode
+                switch mode {
+                    case .default:
+                        openChatMessageMode = .default
+                    case .stream:
+                        openChatMessageMode = .stream
+                    case .automaticPlayback:
+                        openChatMessageMode = .automaticPlayback
+                }
+                let _ = item.controllerInteraction.openMessage(item.message, openChatMessageMode)
             }
         }
         self.contentNode.activateAction = { [weak self] in
@@ -187,6 +196,8 @@ final class ChatMessageWebpageBubbleContentNode: ChatMessageBubbleContentNode {
             var text: String?
             var entities: [MessageTextEntity]?
             var mediaAndFlags: (Media, ChatMessageAttachedContentNodeMediaFlags)?
+            var badge: String?
+            
             var actionIcon: ChatMessageAttachedContentActionIcon?
             var actionTitle: String?
             
@@ -216,24 +227,49 @@ final class ChatMessageWebpageBubbleContentNode: ChatMessageBubbleContentNode {
                 }
                 
                 var mainMedia: Media?
+
+                var automaticPlayback = false
+                
+                if let file = webpage.file, (file.isAnimated && item.controllerInteraction.automaticMediaDownloadSettings.autoplayGifs) || (!file.isAnimated && item.controllerInteraction.automaticMediaDownloadSettings.autoplayVideos) {
+                    var automaticDownload: InteractiveMediaNodeAutodownloadMode = .none
+                    if shouldDownloadMediaAutomatically(settings: item.controllerInteraction.automaticMediaDownloadSettings, peerType: item.associatedData.automaticDownloadPeerType, networkType: item.associatedData.automaticDownloadNetworkType, authorPeerId: item.message.author?.id, contactsPeerIds: item.associatedData.contactsPeerIds, media: file) {
+                        automaticDownload = .full
+                    }
+                    if case .full = automaticDownload {
+                        automaticPlayback = true
+                    } else {
+                        automaticPlayback = item.context.account.postbox.mediaBox.completedResourcePath(file.resource) != nil
+                    }
+                }
                 
                 switch type {
                     case .instagram, .twitter:
-                        mainMedia = webpage.image ?? webpage.file
+                        if automaticPlayback {
+                            mainMedia = webpage.file ?? webpage.image
+                        } else {
+                            mainMedia = webpage.image ?? webpage.file
+                        }
                     default:
                         mainMedia = webpage.file ?? webpage.image
                 }
                 
                 if let file = mainMedia as? TelegramMediaFile {
                     if let embedUrl = webpage.embedUrl, !embedUrl.isEmpty {
-                        mediaAndFlags = (webpage.image ?? file, [.preferMediaBeforeText])
-                    } else if webpage.type == "telegram_background" {
-                        var representations: [TelegramMediaImageRepresentation] = file.previewRepresentations
-                        if let dimensions = file.dimensions {
-                            representations.append(TelegramMediaImageRepresentation(dimensions: dimensions, resource: file.resource))
+                        if automaticPlayback {
+                            mediaAndFlags = (file, [.preferMediaBeforeText])
+                        } else {
+                            mediaAndFlags = (webpage.image ?? file, [.preferMediaBeforeText])
                         }
-                        let tmpImage = TelegramMediaImage(imageId: MediaId(namespace: 0, id: 0), representations: representations, immediateThumbnailData: file.immediateThumbnailData, reference: nil, partialReference: nil)
-                        mediaAndFlags = (tmpImage, [])
+                    } else if webpage.type == "telegram_background" {
+                        var patternColor: UIColor?
+                        if let wallpaper = parseWallpaperUrl(webpage.url), case let .slug(_, _, color, intensity) = wallpaper {
+                            patternColor = color?.withAlphaComponent(CGFloat(intensity ?? 50) / 100.0)
+                        }
+                        let media = WallpaperPreviewMedia(content: .file(file, patternColor))
+                        mediaAndFlags = (media, [.preferMediaAspectFilled])
+                        if let fileSize = file.size {
+                            badge = dataSizeString(fileSize, decimalSeparator: item.presentationData.dateTimeFormat.decimalSeparator)
+                        }
                     } else {
                         mediaAndFlags = (file, [])
                     }
@@ -255,6 +291,14 @@ final class ChatMessageWebpageBubbleContentNode: ChatMessageBubbleContentNode {
                         }
                         mediaAndFlags = (image, flags)
                     }
+                } else if let type = webpage.type, type == "telegram_background" {
+                    if let text = webpage.text, let colorCodeRange = text.range(of: "#") {
+                        let colorCode = String(text[colorCodeRange.upperBound...])
+                        if colorCode.rangeOfCharacter(from: CharacterSet(charactersIn: "0123456789abcdefABCDEF").inverted) == nil, let color = UIColor(hexString: colorCode) {
+                            let media = WallpaperPreviewMedia(content: .color(color))
+                            mediaAndFlags = (media, ChatMessageAttachedContentNodeMediaFlags())
+                        }
+                    }
                 }
                 
                 if let _ = webpage.instantPage {
@@ -275,6 +319,8 @@ final class ChatMessageWebpageBubbleContentNode: ChatMessageBubbleContentNode {
                             actionTitle = item.presentationData.strings.Conversation_ViewMessage
                         case "telegram_background":
                             title = item.presentationData.strings.Conversation_ChatBackground
+                            subtitle = nil
+                            text = nil
                             actionTitle = item.presentationData.strings.Conversation_ViewBackground
                         default:
                             break
@@ -282,7 +328,7 @@ final class ChatMessageWebpageBubbleContentNode: ChatMessageBubbleContentNode {
                 }
             }
             
-            let (initialWidth, continueLayout) = contentNodeLayout(item.presentationData, item.controllerInteraction.automaticMediaDownloadSettings, item.associatedData, item.account, item.controllerInteraction, item.message, item.read, title, subtitle, text, entities, mediaAndFlags, actionIcon, actionTitle, true, layoutConstants, constrainedSize)
+            let (initialWidth, continueLayout) = contentNodeLayout(item.presentationData, item.controllerInteraction.automaticMediaDownloadSettings, item.associatedData, item.context, item.controllerInteraction, item.message, item.read, title, subtitle, text, entities, mediaAndFlags, badge, actionIcon, actionTitle, true, layoutConstants, constrainedSize)
             
             let contentProperties = ChatMessageBubbleContentProperties(hidesSimpleAuthorHeader: false, headerSpacing: 8.0, hidesBackground: .never, forceFullCorners: false, forceAlignment: .none)
             
@@ -321,6 +367,10 @@ final class ChatMessageWebpageBubbleContentNode: ChatMessageBubbleContentNode {
     
     override func animateInsertionIntoBubble(_ duration: Double) {
         self.layer.animateAlpha(from: 0.0, to: 1.0, duration: 0.25)
+    }
+    
+    override func playMediaWithSound() -> (() -> Void, Bool, Bool, Bool, ASDisplayNode?)? {
+        return self.contentNode.playMediaWithSound()
     }
     
     override func tapActionAtPoint(_ point: CGPoint, gesture: TapLongTapOrDoubleTapGesture) -> ChatMessageBubbleContentTapAction {
@@ -416,7 +466,7 @@ final class ChatMessageWebpageBubbleContentNode: ChatMessageBubbleContentNode {
         }
     }
     
-    override func transitionNode(messageId: MessageId, media: Media) -> (ASDisplayNode, () -> UIView?)? {
+    override func transitionNode(messageId: MessageId, media: Media) -> (ASDisplayNode, () -> (UIView?, UIView?))? {
         if self.item?.message.id != messageId {
             return nil
         }

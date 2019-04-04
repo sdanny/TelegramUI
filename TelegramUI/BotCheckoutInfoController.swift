@@ -24,7 +24,7 @@ final class BotCheckoutInfoController: ViewController {
         return super.displayNode as! BotCheckoutInfoControllerNode
     }
     
-    private let account: Account
+    private let context: AccountContext
     private let invoice: BotPaymentInvoice
     private let messageId: MessageId
     private let initialFormInfo: BotPaymentRequestedInfo
@@ -39,15 +39,15 @@ final class BotCheckoutInfoController: ViewController {
     private var doneItem: UIBarButtonItem?
     private var activityItem: UIBarButtonItem?
     
-    public init(account: Account, invoice: BotPaymentInvoice, messageId: MessageId, initialFormInfo: BotPaymentRequestedInfo, focus: BotCheckoutInfoControllerFocus, formInfoUpdated: @escaping (BotPaymentRequestedInfo, BotPaymentValidatedFormInfo) -> Void) {
-        self.account = account
+    public init(context: AccountContext, invoice: BotPaymentInvoice, messageId: MessageId, initialFormInfo: BotPaymentRequestedInfo, focus: BotCheckoutInfoControllerFocus, formInfoUpdated: @escaping (BotPaymentRequestedInfo, BotPaymentValidatedFormInfo) -> Void) {
+        self.context = context
         self.invoice = invoice
         self.messageId = messageId
         self.initialFormInfo = initialFormInfo
         self.focus = focus
         self.formInfoUpdated = formInfoUpdated
         
-        self.presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+        self.presentationData = context.sharedContext.currentPresentationData.with { $0 }
         
         super.init(navigationBarPresentationData: NavigationBarPresentationData(presentationData: self.presentationData))
         self.statusBar.statusBarStyle = self.presentationData.theme.rootController.statusBar.style.style
@@ -69,11 +69,11 @@ final class BotCheckoutInfoController: ViewController {
     }
     
     override public func loadDisplayNode() {
-        self.displayNode = BotCheckoutInfoControllerNode(account: self.account, invoice: self.invoice, messageId: self.messageId, formInfo: self.initialFormInfo, focus: self.focus, theme: self.presentationData.theme, strings: self.presentationData.strings, dismiss: { [weak self] in
+        self.displayNode = BotCheckoutInfoControllerNode(context: self.context, invoice: self.invoice, messageId: self.messageId, formInfo: self.initialFormInfo, focus: self.focus, theme: self.presentationData.theme, strings: self.presentationData.strings, dismiss: { [weak self] in
             self?.presentingViewController?.dismiss(animated: false, completion: nil)
         }, openCountrySelection: { [weak self] in
             if let strongSelf = self {
-                let controller = AuthorizationSequenceCountrySelectionController(strings: strongSelf.presentationData.strings, theme: AuthorizationSequenceCountrySelectionTheme(presentationTheme: strongSelf.presentationData.theme), displayCodes: false)
+                let controller = AuthorizationSequenceCountrySelectionController(strings: strongSelf.presentationData.strings, theme: strongSelf.presentationData.theme, displayCodes: false)
                 controller.completeWithCountryCode = { _, id in
                     if let strongSelf = self {
                         strongSelf.controllerNode.updateCountry(id)

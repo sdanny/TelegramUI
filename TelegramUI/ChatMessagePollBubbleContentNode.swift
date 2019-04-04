@@ -4,7 +4,7 @@ import Display
 import TelegramCore
 import Postbox
 
-private struct PercentCounterItem: Comparable  {
+struct PercentCounterItem: Comparable  {
     var index: Int = 0
     var percent: Int = 0
     var remainder: Int = 0
@@ -20,7 +20,7 @@ private struct PercentCounterItem: Comparable  {
     
 }
 
-private func adjustPercentCount(_ items: [PercentCounterItem], left: Int) -> [PercentCounterItem] {
+func adjustPercentCount(_ items: [PercentCounterItem], left: Int) -> [PercentCounterItem] {
     var left = left
     var items = items.sorted(by: <)
     var i:Int = 0
@@ -47,7 +47,7 @@ private func adjustPercentCount(_ items: [PercentCounterItem], left: Int) -> [Pe
     return items
 }
 
-private func countNicePercent(votes: [Int], total: Int) -> [Int] {
+func countNicePercent(votes: [Int], total: Int) -> [Int] {
     var result:[Int] = []
     var items:[PercentCounterItem] = []
     for _ in votes {
@@ -401,6 +401,8 @@ private final class ChatMessagePollOptionNode: ASDisplayNode {
                     
                     node.highlightedBackgroundNode.backgroundColor = (incoming ? presentationData.theme.theme.chat.bubble.incomingAccentTextColor : presentationData.theme.theme.chat.bubble.outgoingAccentTextColor).withAlphaComponent(0.15)
                     
+                    node.buttonNode.accessibilityLabel = option.text
+                    
                     let titleNode = titleApply()
                     if node.titleNode !== titleNode {
                         node.titleNode = titleNode
@@ -570,7 +572,7 @@ class ChatMessagePollBubbleContentNode: ChatMessageBubbleContentNode {
             return (contentProperties, nil, CGFloat.greatestFiniteMagnitude, { constrainedSize, position in
                 let message = item.message
                 
-                let incoming = item.message.effectivelyIncoming(item.account.peerId)
+                let incoming = item.message.effectivelyIncoming(item.context.account.peerId)
                 
                 let horizontalInset = layoutConstants.text.bubbleInsets.left + layoutConstants.text.bubbleInsets.right
                 let textConstrainedSize = CGSize(width: constrainedSize.width - horizontalInset, height: constrainedSize.height)
@@ -732,7 +734,7 @@ class ChatMessagePollBubbleContentNode: ChatMessageBubbleContentNode {
                         } else if poll.isClosed {
                             optionResult = ChatMessagePollOptionResult(normalized: 0, percent: 0)
                         }
-                        let result = makeLayout(item.account.peerId, item.presentationData, item.message, option, optionResult, constrainedSize.width - layoutConstants.bubble.borderInset * 2.0)
+                        let result = makeLayout(item.context.account.peerId, item.presentationData, item.message, option, optionResult, constrainedSize.width - layoutConstants.bubble.borderInset * 2.0)
                         boundingSize.width = max(boundingSize.width, result.minimumWidth + layoutConstants.bubble.borderInset * 2.0)
                         pollOptionsFinalizeLayouts.append(result.1)
                     }

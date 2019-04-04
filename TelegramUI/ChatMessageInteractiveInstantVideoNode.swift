@@ -34,7 +34,7 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
     
     private var item: ChatMessageBubbleContentItem?
     private var automaticDownload: Bool?
-    var telegramFile: TelegramMediaFile?
+    var media: TelegramMediaFile?
     private var secretProgressIcon: UIImage?
     
     private let fetchDisposable = MetaDisposable()
@@ -45,8 +45,16 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
     private let infoBackgroundNode: ASImageNode
     private let muteIconNode: ASImageNode
     
-    private var status: FileMediaResourceMediaStatus?
+    private var status: FileMediaResourceStatus?
+    private var playerStatus: MediaPlayerStatus? {
+        didSet {
+            if self.playerStatus != oldValue {
+                self.updateStatus()
+            }
+        }
+    }
     private let playbackStatusDisposable = MetaDisposable()
+    private let playerStatusDisposable = MetaDisposable()
     private let fetchedThumbnailDisposable = MetaDisposable()
     
     private var shouldAcquireVideoContext: Bool {
@@ -98,6 +106,7 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
     deinit {
         self.fetchDisposable.dispose()
         self.playbackStatusDisposable.dispose()
+        self.playerStatusDisposable.dispose()
         self.fetchedThumbnailDisposable.dispose()
     }
     
@@ -112,7 +121,7 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
     }
     
     func asyncLayout() -> (_ item: ChatMessageBubbleContentItem, _ width: CGFloat, _ displaySize: CGSize, _ statusType: ChatMessageInteractiveInstantVideoNodeStatusType, _ automaticDownload: Bool) -> (ChatMessageInstantVideoItemLayoutResult, (ChatMessageInstantVideoItemLayoutData, ContainedViewLayoutTransition) -> Void) {
-        let previousFile = self.telegramFile
+        let previousFile = self.media
         
         let currentItem = self.item
         let previousAutomaticDownload = self.automaticDownload
@@ -181,7 +190,7 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
             
             var updatedPlaybackStatus: Signal<FileMediaResourceStatus, NoError>?
             if let updatedFile = updatedFile, updatedMedia {
-                updatedPlaybackStatus = combineLatest(messageFileMediaResourceStatus(account: item.account, file: updatedFile, message: item.message, isRecentActions: item.associatedData.isRecentActions), item.account.pendingMessageManager.pendingMessageStatus(item.message.id))
+                updatedPlaybackStatus = combineLatest(messageFileMediaResourceStatus(context: item.context, file: updatedFile, message: item.message, isRecentActions: item.associatedData.isRecentActions), item.context.account.pendingMessageManager.pendingMessageStatus(item.message.id))
                 |> map { resourceStatus, pendingStatus -> FileMediaResourceStatus in
                     if let pendingStatus = pendingStatus {
                         var progress = pendingStatus.progress
@@ -200,7 +209,7 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
             let arguments = TransformImageArguments(corners: ImageCorners(radius: videoFrame.size.width / 2.0), imageSize: videoFrame.size, boundingSize: videoFrame.size, intrinsicInsets: UIEdgeInsets())
             
             let statusType: ChatMessageDateAndStatusType
-            if item.message.effectivelyIncoming(item.account.peerId) {
+            if item.message.effectivelyIncoming(item.context.account.peerId) {
                 switch statusDisplayType {
                     case .free:
                         statusType = .FreeIncoming
@@ -283,7 +292,7 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
                         strongSelf.secretVideoPlaceholderBackground.image = secretVideoPlaceholderBackgroundImage
                     }
                     
-                    strongSelf.telegramFile = updatedFile
+                    strongSelf.media = updatedFile
                     
                     if let infoBackgroundImage = strongSelf.infoBackgroundNode.image, let muteImage = strongSelf.muteIconNode.image {
                         let infoWidth = muteImage.size.width
@@ -293,20 +302,9 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
                         transition.updateFrame(node: strongSelf.muteIconNode, frame: muteIconFrame)
                     }
                     
-                    if let updatedPlaybackStatus = updatedPlaybackStatus {
-                        strongSelf.playbackStatusDisposable.set((updatedPlaybackStatus
-                        |> deliverOnMainQueue).start(next: { status in
-                            guard let strongSelf = self else {
-                                return
-                            }
-                            strongSelf.status = status.mediaStatus
-                            strongSelf.updateStatus()
-                        }))
-                    }
-                    
                     if let updatedFile = updatedFile, updatedMedia {
                         if let resource = updatedFile.previewRepresentations.first?.resource {
-                            strongSelf.fetchedThumbnailDisposable.set(fetchedMediaResource(postbox: item.account.postbox, reference: FileMediaReference.message(message: MessageReference(item.message), media: updatedFile).resourceReference(resource)).start())
+                            strongSelf.fetchedThumbnailDisposable.set(fetchedMediaResource(postbox: item.context.account.postbox, reference: FileMediaReference.message(message: MessageReference(item.message), media: updatedFile).resourceReference(resource)).start())
                         } else {
                             strongSelf.fetchedThumbnailDisposable.set(nil)
                         }
@@ -326,6 +324,7 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
                             strongSelf.dateAndStatusNode.frame = CGRect(origin: CGPoint(x: min(floor(videoFrame.midX) + 55.0, videoFrame.maxX + right - dateAndStatusSize.width - 4.0), y: videoFrame.maxY - dateAndStatusSize.height), size: dateAndStatusSize)
                     }
                     
+                    var updatedPlayerStatusSignal: Signal<MediaPlayerStatus?, NoError>?
                     if let telegramFile = updatedFile, updatedMedia {
                         let durationTextColor: UIColor
                         let durationFillColor: UIColor
@@ -336,7 +335,7 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
                                 durationFillColor = serviceColor.fill
                             case .bubble:
                                 durationFillColor = .clear
-                                if item.message.effectivelyIncoming(item.account.peerId) {
+                                if item.message.effectivelyIncoming(item.context.account.peerId) {
                                     durationTextColor = theme.theme.chat.bubble.incomingSecondaryTextColor
                                 } else {
                                     durationTextColor = theme.theme.chat.bubble.outgoingSecondaryTextColor
@@ -353,40 +352,68 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
                         }
                         durationNode.defaultDuration = telegramFile.duration.flatMap(Double.init)
                         
+                        let streamVideo = automaticDownload && isMediaStreamable(message: item.message, media: telegramFile) && telegramFile.id?.namespace != Namespaces.Media.LocalFile
                         if let videoNode = strongSelf.videoNode {
                             videoNode.layer.allowsGroupOpacity = true
                             videoNode.layer.animateAlpha(from: 1.0, to: 0.0, duration: 0.5, delay: 0.2, removeOnCompletion: false, completion: { [weak videoNode] _ in
                                 videoNode?.removeFromSupernode()
                             })
                         }
-                        if let mediaManager = item.account.telegramApplicationContext.mediaManager {
-                            let videoNode = UniversalVideoNode(postbox: item.account.postbox, audioSession: mediaManager.audioSession, manager: mediaManager.universalVideoManager, decoration: ChatBubbleInstantVideoDecoration(diameter: displaySize.width + 2.0, backgroundImage: instantVideoBackgroundImage, tapped: {
-                                if let strongSelf = self {
-                                    if let item = strongSelf.item {
-                                        if strongSelf.infoBackgroundNode.alpha.isZero {
-                                            item.account.telegramApplicationContext.mediaManager?.playlistControl(.playback(.togglePlayPause), type: .voice)
-                                        } else {
-                                            //let _ = item.controllerInteraction.openMessage(item.message)
-                                        }
+                        let mediaManager = item.context.sharedContext.mediaManager
+                        let videoNode = UniversalVideoNode(postbox: item.context.account.postbox, audioSession: mediaManager.audioSession, manager: mediaManager.universalVideoManager, decoration: ChatBubbleInstantVideoDecoration(diameter: displaySize.width + 2.0, backgroundImage: instantVideoBackgroundImage, tapped: {
+                            if let strongSelf = self {
+                                if let item = strongSelf.item {
+                                    if strongSelf.infoBackgroundNode.alpha.isZero {
+                                        item.context.sharedContext.mediaManager.playlistControl(.playback(.togglePlayPause), type: .voice)
+                                    } else {
+                                        //let _ = item.controllerInteraction.openMessage(item.message)
                                     }
                                 }
-                            }), content: NativeVideoContent(id: .message(item.message.id, item.message.stableId, telegramFile.fileId), fileReference: .message(message: MessageReference(item.message), media: telegramFile), streamVideo: false, enableSound: false, fetchAutomatically: false), priority: .embedded, autoplay: true)
-                            let previousVideoNode = strongSelf.videoNode
-                            strongSelf.videoNode = videoNode
-                            strongSelf.insertSubnode(videoNode, belowSubnode: previousVideoNode ?? strongSelf.dateAndStatusNode)
-                            videoNode.canAttachContent = strongSelf.shouldAcquireVideoContext
+                            }
+                        }), content: NativeVideoContent(id: .message(item.message.id, item.message.stableId, telegramFile.fileId), fileReference: .message(message: MessageReference(item.message), media: telegramFile), streamVideo: streamVideo ? .earlierStart : .none, enableSound: false, fetchAutomatically: false), priority: .embedded, autoplay: true)
+                        let previousVideoNode = strongSelf.videoNode
+                        strongSelf.videoNode = videoNode
+                        strongSelf.insertSubnode(videoNode, belowSubnode: previousVideoNode ?? strongSelf.dateAndStatusNode)
+                        videoNode.canAttachContent = strongSelf.shouldAcquireVideoContext
+                    
+                        if isSecretMedia {
+                            let updatedSecretPlaceholderSignal = chatSecretMessageVideo(account: item.context.account, videoReference: .message(message: MessageReference(item.message), media: telegramFile))
+                            strongSelf.secretVideoPlaceholder.setSignal(updatedSecretPlaceholderSignal)
+                            if strongSelf.secretVideoPlaceholder.supernode == nil {
+                                strongSelf.insertSubnode(strongSelf.secretVideoPlaceholderBackground, belowSubnode: videoNode)
+                                strongSelf.insertSubnode(strongSelf.secretVideoPlaceholder, belowSubnode: videoNode)
+                            }
+                        }
                         
-                            if isSecretMedia {
-                                let updatedSecretPlaceholderSignal = chatSecretMessageVideo(account: item.account, videoReference: .message(message: MessageReference(item.message), media: telegramFile))
-                                strongSelf.secretVideoPlaceholder.setSignal(updatedSecretPlaceholderSignal)
-                                if strongSelf.secretVideoPlaceholder.supernode == nil {
-                                    strongSelf.insertSubnode(strongSelf.secretVideoPlaceholderBackground, belowSubnode: videoNode)
-                                    strongSelf.insertSubnode(strongSelf.secretVideoPlaceholder, belowSubnode: videoNode)
+                        updatedPlayerStatusSignal = videoNode.status
+                        |> mapToSignal { status -> Signal<MediaPlayerStatus?, NoError> in
+                            if let status = status, case .buffering = status.status {
+                                return .single(status) |> delay(0.75, queue: Queue.mainQueue())
+                            } else {
+                                return .single(status)
+                            }
+                        }
+                    }
+                    
+                    if let updatedPlaybackStatus = updatedPlaybackStatus {
+                        strongSelf.playbackStatusDisposable.set((updatedPlaybackStatus
+                        |> deliverOnMainQueue).start(next: { status in
+                            if let strongSelf = self {
+                                strongSelf.status = status
+                                strongSelf.updateStatus()
+                            }
+                        }))
+                    }
+                    
+                    if let updatedPlayerStatusSignal = updatedPlayerStatusSignal {
+                        strongSelf.playerStatusDisposable.set((updatedPlayerStatusSignal
+                        |> deliverOnMainQueue).start(next: { [weak self] status in
+                            displayLinkDispatcher.dispatch {
+                                if let strongSelf = self {
+                                    strongSelf.playerStatus = status
                                 }
                             }
-                        } else {
-                            strongSelf.secretVideoPlaceholder.removeFromSupernode()
-                        }
+                        }))
                     }
                     
                     if let durationNode = strongSelf.durationNode {
@@ -410,7 +437,7 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
                     strongSelf.updateStatus()
                     
                     if let telegramFile = updatedFile, previousAutomaticDownload != automaticDownload, automaticDownload {
-                        strongSelf.fetchDisposable.set(messageMediaFileInteractiveFetched(account: item.account, message: item.message, file: telegramFile, userInitiated: false).start())
+                        strongSelf.fetchDisposable.set(messageMediaFileInteractiveFetched(context: item.context, message: item.message, file: telegramFile, userInitiated: false).start())
                     }
                 }
             })
@@ -450,13 +477,13 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
         }
         
         let displayMute: Bool
-        switch status {
+        switch status.mediaStatus {
             case let .fetchStatus(fetchStatus):
                 switch fetchStatus {
                     case .Local:
                         displayMute = true
                     default:
-                        displayMute = false
+                        displayMute = self.automaticDownload ?? false
                 }
             case .playbackStatus:
                 displayMute = false
@@ -473,8 +500,17 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
             }
         }
         
+        var isBuffering: Bool?
+        if let message = self.item?.message, let media = self.media, let size = media.size, (isMediaStreamable(message: message, media: media) || size <= 256 * 1024) && (self.automaticDownload ?? false) {
+            if let playerStatus = self.playerStatus, case .buffering = playerStatus.status {
+                isBuffering = true
+            } else {
+                isBuffering = false
+            }
+        }
+        
         var progressRequired = false
-        if case let .fetchStatus(fetchStatus) = status {
+        if case let .fetchStatus(fetchStatus) = status.mediaStatus {
             if case .Local = fetchStatus {
                 if file.isVideo {
                     progressRequired = true
@@ -484,6 +520,8 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
             } else {
                 progressRequired = true
             }
+        } else if isBuffering ?? false {
+            progressRequired = true
         }
         
         if progressRequired {
@@ -504,12 +542,24 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
         }
         
         var state: RadialStatusNodeState
-        switch status {
-            case let .fetchStatus(fetchStatus):
+        switch status.mediaStatus {
+            case var .fetchStatus(fetchStatus):
+                if item.message.forwardInfo != nil {
+                    fetchStatus = status.fetchStatus
+                }
+                
                 switch fetchStatus {
                     case let .Fetching(_, progress):
-                        let adjustedProgress = max(progress, 0.027)
-                        state = .progress(color: bubbleTheme.mediaOverlayControlForegroundColor, lineWidth: nil, value: CGFloat(adjustedProgress), cancelEnabled: true)
+                        if let isBuffering = isBuffering {
+                            if isBuffering {
+                                state = .progress(color: bubbleTheme.mediaOverlayControlForegroundColor, lineWidth: nil, value: nil, cancelEnabled: true)
+                            } else {
+                                state = .none
+                            }
+                        } else {
+                            let adjustedProgress = max(progress, 0.027)
+                            state = .progress(color: bubbleTheme.mediaOverlayControlForegroundColor, lineWidth: nil, value: CGFloat(adjustedProgress), cancelEnabled: true)
+                        }
                     case .Local:
                         if isSecretMedia && self.secretProgressIcon != nil {
                             if let (beginTime, timeout) = secretBeginTimeAndTimeout {
@@ -524,7 +574,15 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
                         state = .download(bubbleTheme.mediaOverlayControlForegroundColor)
                 }
             default:
-                state = .none
+                var isLocal = false
+                if case .Local = status.fetchStatus {
+                    isLocal = true
+                }
+                if (isBuffering ?? false) && !isLocal {
+                    state = .progress(color: bubbleTheme.mediaOverlayControlForegroundColor, lineWidth: nil, value: nil, cancelEnabled: true)
+                } else {
+                    state = .none
+                }
         }
         if let statusNode = self.statusNode {
             if state == .none {
@@ -537,7 +595,7 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
             })
         }
         
-        if case .playbackStatus = status {
+        if case .playbackStatus = status.mediaStatus {
             let playbackStatusNode: InstantVideoRadialStatusNode
             if let current = self.playbackStatusNode {
                 playbackStatusNode = current
@@ -548,7 +606,7 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
             }
             playbackStatusNode.frame = videoFrame.insetBy(dx: 1.5, dy: 1.5)
             
-            let status = messageFileMediaPlaybackStatus(account: item.account, file: file, message: item.message, isRecentActions: item.associatedData.isRecentActions)
+            let status = messageFileMediaPlaybackStatus(context: item.context, file: file, message: item.message, isRecentActions: item.associatedData.isRecentActions)
             playbackStatusNode.status = status
             self.durationNode?.status = status
             |> map(Optional.init)
@@ -606,10 +664,16 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
             return
         }
         if self.infoBackgroundNode.alpha.isZero {
-            item.account.telegramApplicationContext.mediaManager?.playlistControl(.playback(.togglePlayPause), type: .voice)
+            if let status = self.status, case let .fetchStatus(fetchStatus) = status.mediaStatus, case .Remote = fetchStatus {
+                item.context.sharedContext.mediaManager.playlistControl(.playback(.pause), type: .voice)
+                self.videoNode?.fetchControl(.fetch)
+            } else {
+                item.context.sharedContext.mediaManager.playlistControl(.playback(.togglePlayPause), type: .voice)
+            }
         } else {
             let _ = item.controllerInteraction.openMessage(item.message, .default)
         }
+        
     }
     
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
@@ -626,21 +690,21 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
     }
     
     private func progressPressed() {
-        guard let item = self.item, let file = self.telegramFile else {
+        guard let item = self.item, let file = self.media else {
             return
         }
         if let status = self.status {
-            switch status {
+            switch status.mediaStatus {
                 case let .fetchStatus(fetchStatus):
                     switch fetchStatus {
                         case .Fetching:
                             if item.message.flags.isSending {
                                 let messageId = item.message.id
-                                let _ = item.account.postbox.transaction({ transaction -> Void in
-                                    deleteMessages(transaction: transaction, mediaBox: item.account.postbox.mediaBox, ids: [messageId])
+                                let _ = item.context.account.postbox.transaction({ transaction -> Void in
+                                    deleteMessages(transaction: transaction, mediaBox: item.context.account.postbox.mediaBox, ids: [messageId])
                                 }).start()
                             } else {
-                                messageMediaFileCancelInteractiveFetch(account: item.account, messageId: item.message.id, file: file)
+                                messageMediaFileCancelInteractiveFetch(context: item.context, messageId: item.message.id, file: file)
                             }
                         case .Remote:
                             self.videoNode?.fetchControl(.fetch)
@@ -682,6 +746,45 @@ class ChatMessageInteractiveInstantVideoNode: ASDisplayNode {
                     return node!
                 }
             })
+        }
+    }
+    
+    func playMediaWithSound() -> (action: () -> Void, soundEnabled: Bool, isVideoMessage: Bool, isUnread: Bool, badgeNode: ASDisplayNode?)? {
+        if let item = self.item {
+            var isUnconsumed = false
+            for attribute in item.message.attributes {
+                if let attribute = attribute as? ConsumableContentMessageAttribute {
+                    if !attribute.consumed {
+                        isUnconsumed = true
+                    }
+                    break
+                }
+            }
+            
+            return ({
+                if !self.infoBackgroundNode.alpha.isZero {
+                    let _ = (item.context.sharedContext.mediaManager.globalMediaPlayerState
+                    |> take(1)
+                    |> deliverOnMainQueue).start(next: { playlistStateAndType in
+                        var canPlay = true
+                        if let (_, state, _) = playlistStateAndType {
+                            switch state {
+                                case let .state(state):
+                                    if case .playing = state.status.status {
+                                        canPlay = false
+                                    }
+                                case .loading:
+                                    break
+                            }
+                        }
+                        if canPlay {
+                            let _ = item.controllerInteraction.openMessage(item.message, .default)
+                        }
+                    })
+                }
+            }, false, true, isUnconsumed, nil)
+        } else {
+            return nil
         }
     }
 }

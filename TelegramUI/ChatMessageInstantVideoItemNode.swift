@@ -20,6 +20,7 @@ class ChatMessageInstantVideoItemNode: ChatMessageItemView {
     private var swipeToReplyFeedback: HapticFeedback?
     
     private var appliedItem: ChatMessageItem?
+    private var appliedForwardInfo: (Peer?, String?)?
     
     private var forwardInfoNode: ChatMessageForwardInfoNode?
     private var forwardBackgroundNode: ASImageNode?
@@ -95,17 +96,17 @@ class ChatMessageInstantVideoItemNode: ChatMessageItemView {
         let actionButtonsLayout = ChatMessageActionButtonsNode.asyncLayout(self.actionButtonsNode)
         
         let currentItem = self.appliedItem
+        let currentForwardInfo = self.appliedForwardInfo
         
         return { item, params, mergedTop, mergedBottom, dateHeaderAtBottom in
-            let baseWidth = params.width - params.leftInset - params.rightInset
-            let incoming = item.message.effectivelyIncoming(item.account.peerId)
+            let incoming = item.message.effectivelyIncoming(item.context.account.peerId)
             
             let avatarInset: CGFloat
             var hasAvatar = false
             
             switch item.chatLocation {
                 case let .peer(peerId):
-                    if peerId != item.account.peerId {
+                    if peerId != item.context.account.peerId {
                         if peerId.isGroupOrChannel && item.message.author != nil {
                             var isBroadcastChannel = false
                             if let peer = item.message.peers[item.message.id.peerId] as? TelegramChannel, case .broadcast = peer.info {
@@ -130,14 +131,14 @@ class ChatMessageInstantVideoItemNode: ChatMessageItemView {
             }
             
             var needShareButton = false
-            if item.message.id.peerId == item.account.peerId {
+            if item.message.id.peerId == item.context.account.peerId {
                 for attribute in item.content.firstMessage.attributes {
                     if let _ = attribute as? SourceReferenceMessageAttribute {
                         needShareButton = true
                         break
                     }
                 }
-            } else if item.message.effectivelyIncoming(item.account.peerId) {
+            } else if item.message.effectivelyIncoming(item.context.account.peerId) {
                 if let peer = item.message.peers[item.message.id.peerId] {
                     if let channel = peer as? TelegramChannel {
                         if case .broadcast = channel.info {
@@ -178,11 +179,11 @@ class ChatMessageInstantVideoItemNode: ChatMessageItemView {
             var automaticDownload = true
             for media in item.message.media {
                 if let file = media as? TelegramMediaFile {
-                    automaticDownload = shouldDownloadMediaAutomatically(settings: item.controllerInteraction.automaticMediaDownloadSettings, peerType: item.associatedData.automaticDownloadPeerType, networkType: item.associatedData.automaticDownloadNetworkType, media: file)
+                    automaticDownload = shouldDownloadMediaAutomatically(settings: item.controllerInteraction.automaticMediaDownloadSettings, peerType: item.associatedData.automaticDownloadPeerType, networkType: item.associatedData.automaticDownloadNetworkType, authorPeerId: item.message.author?.id, contactsPeerIds: item.associatedData.contactsPeerIds, media: file)
                 }
             }
             
-            let (videoLayout, videoApply) = makeVideoLayout(ChatMessageBubbleContentItem(account: item.account, controllerInteraction: item.controllerInteraction, message: item.message, read: item.read, presentationData: item.presentationData, associatedData: item.associatedData), params.width - params.leftInset - params.rightInset - avatarInset, displaySize, .free, automaticDownload)
+            let (videoLayout, videoApply) = makeVideoLayout(ChatMessageBubbleContentItem(context: item.context, controllerInteraction: item.controllerInteraction, message: item.message, read: item.read, presentationData: item.presentationData, associatedData: item.associatedData), params.width - params.leftInset - params.rightInset - avatarInset, displaySize, .free, automaticDownload)
             
             let videoFrame = CGRect(origin: CGPoint(x: (incoming ? (params.leftInset + layoutConstants.bubble.edgeInset + avatarInset + layoutConstants.bubble.contentInsets.left) : (params.width - params.rightInset - videoLayout.contentSize.width - layoutConstants.bubble.edgeInset - layoutConstants.bubble.contentInsets.left)), y: 0.0), size: videoLayout.contentSize)
             
@@ -215,7 +216,7 @@ class ChatMessageInstantVideoItemNode: ChatMessageItemView {
                     }
                 }
                 if let replyAttribute = attribute as? ReplyMessageAttribute, let replyMessage = item.message.associatedMessages[replyAttribute.messageId] {
-                    replyInfoApply = makeReplyInfoLayout(item.presentationData, item.presentationData.strings, item.account, .standalone, replyMessage, CGSize(width: availableWidth, height: CGFloat.greatestFiniteMagnitude))
+                    replyInfoApply = makeReplyInfoLayout(item.presentationData, item.presentationData.strings, item.context, .standalone, replyMessage, CGSize(width: availableWidth, height: CGFloat.greatestFiniteMagnitude))
                 } else if let attribute = attribute as? InlineBotMessageAttribute {
                     if let peerId = attribute.peerId, let bot = item.message.peers[peerId] as? TelegramUser {
                         inlineBotNameString = bot.username
@@ -246,7 +247,7 @@ class ChatMessageInstantVideoItemNode: ChatMessageItemView {
                     updatedShareButtonNode = currentShareButtonNode
                     if item.presentationData.theme !== currentItem?.presentationData.theme {
                         let graphics = PresentationResourcesChat.additionalGraphics(item.presentationData.theme.theme, wallpaper: item.presentationData.theme.wallpaper)
-                        if item.message.id.peerId == item.account.peerId {
+                        if item.message.id.peerId == item.context.account.peerId {
                             updatedShareButtonBackground = graphics.chatBubbleNavigateButtonImage
                         } else {
                             updatedShareButtonBackground = graphics.chatBubbleShareButtonImage
@@ -256,7 +257,7 @@ class ChatMessageInstantVideoItemNode: ChatMessageItemView {
                     let buttonNode = HighlightableButtonNode()
                     let buttonIcon: UIImage?
                     let graphics = PresentationResourcesChat.additionalGraphics(item.presentationData.theme.theme, wallpaper: item.presentationData.theme.wallpaper)
-                    if item.message.id.peerId == item.account.peerId {
+                    if item.message.id.peerId == item.context.account.peerId {
                         buttonIcon = graphics.chatBubbleNavigateButtonImage
                     } else {
                         buttonIcon = graphics.chatBubbleShareButtonImage
@@ -268,25 +269,30 @@ class ChatMessageInstantVideoItemNode: ChatMessageItemView {
             
             let availableContentWidth = params.width - params.leftInset - params.rightInset - layoutConstants.bubble.edgeInset * 2.0 - avatarInset - layoutConstants.bubble.contentInsets.left
             
+            var forwardSource: Peer?
+            var forwardAuthorSignature: String?
+            
             var forwardInfoSizeApply: (CGSize, () -> ChatMessageForwardInfoNode)?
             var updatedForwardBackgroundNode: ASImageNode?
             var forwardBackgroundImage: UIImage?
             if let forwardInfo = item.message.forwardInfo {
-                let forwardSource: Peer
-                let forwardAuthorSignature: String?
-                
                 if let source = forwardInfo.source {
                     forwardSource = source
                     if let authorSignature = forwardInfo.authorSignature {
                         forwardAuthorSignature = authorSignature
-                    } else if forwardInfo.author.id != source.id {
-                        forwardAuthorSignature = forwardInfo.author.displayTitle(strings: item.presentationData.strings, displayOrder: item.presentationData.nameDisplayOrder)
+                    } else if let forwardInfoAuthor = forwardInfo.author, forwardInfoAuthor.id != source.id {
+                        forwardAuthorSignature = forwardInfoAuthor.displayTitle(strings: item.presentationData.strings, displayOrder: item.presentationData.nameDisplayOrder)
                     } else {
                         forwardAuthorSignature = nil
                     }
                 } else {
-                    forwardSource = forwardInfo.author
-                    forwardAuthorSignature = nil
+                    if let currentForwardInfo = currentForwardInfo, forwardInfo.author == nil && currentForwardInfo.0 != nil {
+                        forwardSource = nil
+                        forwardAuthorSignature = currentForwardInfo.0?.displayTitle
+                    } else {
+                        forwardSource = forwardInfo.author
+                        forwardAuthorSignature = forwardInfo.authorSignature
+                    }
                 }
                 let availableWidth = max(60.0, availableContentWidth - videoLayout.contentSize.width + 6.0)
                 forwardInfoSizeApply = makeForwardInfoLayout(item.presentationData, item.presentationData.strings, .standalone, forwardSource, forwardAuthorSignature, CGSize(width: availableWidth, height: CGFloat.greatestFiniteMagnitude))
@@ -304,7 +310,7 @@ class ChatMessageInstantVideoItemNode: ChatMessageItemView {
             var maxContentWidth = videoLayout.contentSize.width
             var actionButtonsFinalize: ((CGFloat) -> (CGSize, (_ animated: Bool) -> ChatMessageActionButtonsNode))?
             if let replyMarkup = replyMarkup {
-                let (minWidth, buttonsLayout) = actionButtonsLayout(item.account, item.presentationData.theme, item.presentationData.strings, replyMarkup, item.message, maxContentWidth)
+                let (minWidth, buttonsLayout) = actionButtonsLayout(item.context, item.presentationData.theme, item.presentationData.strings, replyMarkup, item.message, maxContentWidth)
                 maxContentWidth = max(maxContentWidth, minWidth)
                 actionButtonsFinalize = buttonsLayout
             }
@@ -322,7 +328,8 @@ class ChatMessageInstantVideoItemNode: ChatMessageItemView {
             return (ListViewItemNodeLayout(contentSize: layoutSize, insets: layoutInsets), { [weak self] animation, _ in
                 if let strongSelf = self {
                     strongSelf.appliedItem = item
-                
+                    strongSelf.appliedForwardInfo = (forwardSource, forwardAuthorSignature)
+                    
                     let transition: ContainedViewLayoutTransition
                     if animation.isAnimated {
                         transition = .animated(duration: 0.2, curve: .spring)
@@ -481,12 +488,17 @@ class ChatMessageInstantVideoItemNode: ChatMessageItemView {
                         if let avatarNode = self.accessoryItemNode as? ChatMessageAvatarAccessoryItemNode, avatarNode.frame.contains(location) {
                             if let item = self.item, let author = item.content.firstMessage.author {
                                 let navigate: ChatControllerInteractionNavigateToPeer
-                                if item.content.firstMessage.id.peerId == item.account.peerId {
+                                if item.content.firstMessage.id.peerId == item.context.account.peerId {
                                     navigate = .chat(textInputState: nil, messageId: nil)
                                 } else {
                                     navigate = .info
                                 }
-                                item.controllerInteraction.openPeer(item.effectiveAuthorId ?? author.id, navigate, item.message)
+                                
+                                if item.effectiveAuthorId?.namespace == Namespaces.Peer.Empty {
+                                    item.controllerInteraction.displayMessageTooltip(item.content.firstMessage.id,  item.presentationData.strings.Conversation_ForwardAuthorHiddenTooltip, self, avatarNode.frame)
+                                } else {
+                                    item.controllerInteraction.openPeer(item.effectiveAuthorId ?? author.id, navigate, item.message)
+                                }
                             }
                             return
                         }
@@ -506,8 +518,10 @@ class ChatMessageInstantVideoItemNode: ChatMessageItemView {
                             if let item = self.item, let forwardInfo = item.message.forwardInfo {
                                 if let sourceMessageId = forwardInfo.sourceMessageId {
                                     item.controllerInteraction.navigateToMessage(item.message.id, sourceMessageId)
-                                } else {
-                                    item.controllerInteraction.openPeer(forwardInfo.source?.id ?? forwardInfo.author.id, .chat(textInputState: nil, messageId: nil), nil)
+                                } else if let id = forwardInfo.source?.id ?? forwardInfo.author?.id {
+                                    item.controllerInteraction.openPeer(id, .chat(textInputState: nil, messageId: nil), nil)
+                                } else if let _ = forwardInfo.authorSignature {
+                                    item.controllerInteraction.displayMessageTooltip(item.message.id, item.presentationData.strings.Conversation_ForwardAuthorHiddenTooltip, forwardInfoNode, nil)
                                 }
                                 return
                             }
@@ -529,7 +543,7 @@ class ChatMessageInstantVideoItemNode: ChatMessageItemView {
     
     @objc func shareButtonPressed() {
         if let item = self.item {
-            if item.content.firstMessage.id.peerId == item.account.peerId {
+            if item.content.firstMessage.id.peerId == item.context.account.peerId {
                 for attribute in item.content.firstMessage.attributes {
                     if let attribute = attribute as? SourceReferenceMessageAttribute {
                         item.controllerInteraction.navigateToMessage(item.content.firstMessage.id, attribute.messageId)
@@ -559,7 +573,7 @@ class ChatMessageInstantVideoItemNode: ChatMessageItemView {
                 if translation.x < -45.0, self.swipeToReplyNode == nil, let item = self.item {
                     self.swipeToReplyFeedback?.impact()
                     
-                    let swipeToReplyNode = ChatMessageSwipeToReplyNode(fillColor: bubbleVariableColor(variableColor: item.presentationData.theme.theme.chat.bubble.shareButtonFillColor, wallpaper: item.presentationData.theme.wallpaper), strokeColor: item.presentationData.theme.theme.chat.bubble.shareButtonStrokeColor, foregroundColor: item.presentationData.theme.theme.chat.bubble.shareButtonForegroundColor)
+                    let swipeToReplyNode = ChatMessageSwipeToReplyNode(fillColor: bubbleVariableColor(variableColor: item.presentationData.theme.theme.chat.bubble.shareButtonFillColor, wallpaper: item.presentationData.theme.wallpaper), strokeColor: bubbleVariableColor(variableColor: item.presentationData.theme.theme.chat.bubble.shareButtonStrokeColor, wallpaper: item.presentationData.theme.wallpaper), foregroundColor: bubbleVariableColor(variableColor: item.presentationData.theme.theme.chat.bubble.shareButtonForegroundColor, wallpaper: item.presentationData.theme.wallpaper))
                     self.swipeToReplyNode = swipeToReplyNode
                     self.addSubnode(swipeToReplyNode)
                     animateReplyNodeIn = true
@@ -625,7 +639,7 @@ class ChatMessageInstantVideoItemNode: ChatMessageItemView {
             var incoming = true
             
             selected = selectionState.selectedIds.contains(item.message.id)
-            incoming = item.message.effectivelyIncoming(item.account.peerId)
+            incoming = item.message.effectivelyIncoming(item.context.account.peerId)
             
             let offset: CGFloat = incoming ? 42.0 : 0.0
             
@@ -693,5 +707,9 @@ class ChatMessageInstantVideoItemNode: ChatMessageItemView {
         super.animateAdded(currentTimestamp, duration: duration)
         
         self.layer.animateAlpha(from: 0.0, to: 1.0, duration: 0.2)
+    }
+    
+    override func playMediaWithSound() -> (() -> Void, Bool, Bool, Bool, ASDisplayNode?)? {
+        return self.interactiveVideoNode.playMediaWithSound()
     }
 }

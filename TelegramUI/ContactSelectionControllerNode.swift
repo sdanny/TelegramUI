@@ -20,7 +20,7 @@ final class ContactSelectionControllerNode: ASDisplayNode {
     let contactListNode: ContactListNode
     private let dimNode: ASDisplayNode
     
-    private let account: Account
+    private let context: AccountContext
     private var searchDisplayController: SearchDisplayController?
     
     private var containerLayout: (ContainerViewLayout, CGFloat)?
@@ -34,12 +34,12 @@ final class ContactSelectionControllerNode: ASDisplayNode {
     var presentationData: PresentationData
     var presentationDataDisposable: Disposable?
     
-    init(account: Account, options: [ContactListAdditionalOption], displayDeviceContacts: Bool) {
-        self.account = account
-        self.presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+    init(context: AccountContext, options: [ContactListAdditionalOption], displayDeviceContacts: Bool) {
+        self.context = context
+        self.presentationData = context.sharedContext.currentPresentationData.with { $0 }
         self.displayDeviceContacts = displayDeviceContacts
         
-        self.contactListNode = ContactListNode(account: account, presentation: .single(.natural(options: options)))
+        self.contactListNode = ContactListNode(context: context, presentation: .single(.natural(options: options)))
         
         self.dimNode = ASDisplayNode()
         
@@ -53,7 +53,7 @@ final class ContactSelectionControllerNode: ASDisplayNode {
         
         self.addSubnode(self.contactListNode)
         
-        self.presentationDataDisposable = (account.telegramApplicationContext.presentationData
+        self.presentationDataDisposable = (context.sharedContext.presentationData
         |> deliverOnMainQueue).start(next: { [weak self] presentationData in
             if let strongSelf = self {
                 let previousTheme = strongSelf.presentationData.theme
@@ -95,7 +95,7 @@ final class ContactSelectionControllerNode: ASDisplayNode {
             searchDisplayController.containerLayoutUpdated(layout, navigationBarHeight: navigationBarHeight, transition: transition)
         }
         
-        self.contactListNode.containerLayoutUpdated(ContainerViewLayout(size: layout.size, metrics: layout.metrics, intrinsicInsets: insets, safeInsets: layout.safeInsets, statusBarHeight: layout.statusBarHeight, inputHeight: layout.inputHeight, standardInputHeight: layout.standardInputHeight, inputHeightIsInteractivellyChanging: layout.inputHeightIsInteractivellyChanging), headerInsets: headerInsets, transition: transition)
+        self.contactListNode.containerLayoutUpdated(ContainerViewLayout(size: layout.size, metrics: layout.metrics, intrinsicInsets: insets, safeInsets: layout.safeInsets, statusBarHeight: layout.statusBarHeight, inputHeight: layout.inputHeight, standardInputHeight: layout.standardInputHeight, inputHeightIsInteractivellyChanging: layout.inputHeightIsInteractivellyChanging, inVoiceOver: layout.inVoiceOver), headerInsets: headerInsets, transition: transition)
         
         self.contactListNode.frame = CGRect(origin: CGPoint(), size: layout.size)
         
@@ -115,7 +115,7 @@ final class ContactSelectionControllerNode: ASDisplayNode {
         } else {
             categories.insert(.global)
         }
-        self.searchDisplayController = SearchDisplayController(presentationData: self.presentationData, contentNode: ContactsSearchContainerNode(account: self.account, onlyWriteable: false, categories: categories, openPeer: { [weak self] peer in
+        self.searchDisplayController = SearchDisplayController(presentationData: self.presentationData, contentNode: ContactsSearchContainerNode(context: self.context, onlyWriteable: false, categories: categories, openPeer: { [weak self] peer in
             self?.requestOpenPeerFromSearch?(peer)
         }), cancel: { [weak self] in
             if let requestDeactivateSearch = self?.requestDeactivateSearch {
@@ -146,8 +146,10 @@ final class ContactSelectionControllerNode: ASDisplayNode {
         }
     }
     
-    func animateIn() {
-        self.layer.animatePosition(from: CGPoint(x: self.layer.position.x, y: self.layer.position.y + self.layer.bounds.size.height), to: self.layer.position, duration: 0.5, timingFunction: kCAMediaTimingFunctionSpring)
+    func animateIn(completion: @escaping () -> Void) {
+        self.layer.animatePosition(from: CGPoint(x: self.layer.position.x, y: self.layer.position.y + self.layer.bounds.size.height), to: self.layer.position, duration: 0.5, timingFunction: kCAMediaTimingFunctionSpring, completion: { _ in
+            completion()
+        })
     }
     
     func animateOut(completion: (() -> Void)? = nil) {

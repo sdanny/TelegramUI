@@ -406,7 +406,7 @@ private func recentSessionsControllerEntries(presentationData: PresentationData,
     return entries
 }
 
-public func recentSessionsController(account: Account) -> ViewController {
+public func recentSessionsController(context: AccountContext) -> ViewController {
     let statePromise = ValuePromise(RecentSessionsControllerState(), ignoreRepeated: true)
     let stateValue = Atomic(value: RecentSessionsControllerState())
     let updateState: ((RecentSessionsControllerState) -> RecentSessionsControllerState) -> Void = { f in
@@ -427,7 +427,7 @@ public func recentSessionsController(account: Account) -> ViewController {
     let sessionsPromise = Promise<[RecentAccountSession]?>(nil)
     let websitesPromise = Promise<([WebAuthorization], [PeerId : Peer])?>(nil)
     
-    let arguments = RecentSessionsControllerArguments(account: account, setSessionIdWithRevealedOptions: { sessionId, fromSessionId in
+    let arguments = RecentSessionsControllerArguments(account: context.account, setSessionIdWithRevealedOptions: { sessionId, fromSessionId in
         updateState { state in
             if (sessionId == nil && fromSessionId == state.sessionIdWithRevealedOptions) || (sessionId != nil && fromSessionId == nil) {
                 return state.withUpdatedSessionIdWithRevealedOptions(sessionId)
@@ -436,7 +436,7 @@ public func recentSessionsController(account: Account) -> ViewController {
             }
         }
     }, removeSession: { sessionId in
-        let presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+        let presentationData = context.sharedContext.currentPresentationData.with { $0 }
         let controller = ActionSheetController(presentationTheme: presentationData.theme)
         let dismissAction: () -> Void = { [weak controller] in
             controller?.dismissAnimated()
@@ -469,7 +469,7 @@ public func recentSessionsController(account: Account) -> ViewController {
                         return .complete()
                     }
                     
-                    removeSessionDisposable.set((terminateAccountSession(account: account, hash: sessionId) |> then((applySessions |> mapError { _ in TerminateSessionError.generic })) |> deliverOnMainQueue).start(error: { _ in
+                    removeSessionDisposable.set((terminateAccountSession(account: context.account, hash: sessionId) |> then((applySessions |> mapError { _ in TerminateSessionError.generic })) |> deliverOnMainQueue).start(error: { _ in
                         updateState {
                             return $0.withUpdatedRemovingSessionId(nil)
                         }
@@ -477,6 +477,7 @@ public func recentSessionsController(account: Account) -> ViewController {
                         updateState {
                             return $0.withUpdatedRemovingSessionId(nil)
                         }
+                        context.sharedContext.updateNotificationTokensRegistration()
                     }))
                 })
             ]),
@@ -484,7 +485,7 @@ public func recentSessionsController(account: Account) -> ViewController {
         ])
         presentControllerImpl?(controller, ViewControllerPresentationArguments(presentationAnimation: .modalSheet))
     }, terminateOtherSessions: {
-        let presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+        let presentationData = context.sharedContext.currentPresentationData.with { $0 }
         let controller = ActionSheetController(presentationTheme: presentationData.theme)
         let dismissAction: () -> Void = { [weak controller] in
             controller?.dismissAnimated()
@@ -511,7 +512,7 @@ public func recentSessionsController(account: Account) -> ViewController {
                             return .complete()
                     }
                     
-                    terminateOtherSessionsDisposable.set((terminateOtherAccountSessions(account: account) |> then(applySessions) |> deliverOnMainQueue).start(error: { _ in
+                    terminateOtherSessionsDisposable.set((terminateOtherAccountSessions(account: context.account) |> then(applySessions) |> deliverOnMainQueue).start(error: { _ in
                         updateState {
                             return $0.withUpdatedTerminatingOtherSessions(false)
                         }
@@ -519,6 +520,7 @@ public func recentSessionsController(account: Account) -> ViewController {
                         updateState {
                             return $0.withUpdatedTerminatingOtherSessions(false)
                         }
+                        context.sharedContext.updateNotificationTokensRegistration()
                     }))
                 })
             ]),
@@ -553,7 +555,7 @@ public func recentSessionsController(account: Account) -> ViewController {
                 return .complete()
         }
         
-        removeSessionDisposable.set(((terminateWebSession(network: account.network, hash: sessionId)
+        removeSessionDisposable.set(((terminateWebSession(network: context.account.network, hash: sessionId)
             |> mapToSignal { _ -> Signal<Void, NoError> in
                 return .complete()
             }) |> then(applySessions) |> deliverOnMainQueue).start(error: { _ in
@@ -566,7 +568,7 @@ public func recentSessionsController(account: Account) -> ViewController {
             }
         }))
     }, terminateAllWebSessions: {
-        let presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+        let presentationData = context.sharedContext.currentPresentationData.with { $0 }
         let controller = ActionSheetController(presentationTheme: presentationData.theme)
         let dismissAction: () -> Void = { [weak controller] in
             controller?.dismissAnimated()
@@ -580,7 +582,7 @@ public func recentSessionsController(account: Account) -> ViewController {
                         return $0.withUpdatedTerminatingOtherSessions(true)
                     }
                     
-                    terminateOtherSessionsDisposable.set((terminateAllWebSessions(network: account.network) |> deliverOnMainQueue).start(error: { _ in
+                    terminateOtherSessionsDisposable.set((terminateAllWebSessions(network: context.account.network) |> deliverOnMainQueue).start(error: { _ in
                         updateState {
                             return $0.withUpdatedTerminatingOtherSessions(false)
                         }
@@ -598,79 +600,79 @@ public func recentSessionsController(account: Account) -> ViewController {
         presentControllerImpl?(controller, ViewControllerPresentationArguments(presentationAnimation: .modalSheet))
     })
     
-    let sessionsSignal: Signal<[RecentAccountSession]?, NoError> = .single(nil) |> then(requestRecentAccountSessions(account: account) |> map(Optional.init))
+    let sessionsSignal: Signal<[RecentAccountSession]?, NoError> = .single(nil) |> then(requestRecentAccountSessions(account: context.account) |> map(Optional.init))
     sessionsPromise.set(sessionsSignal)
     
-    let websitesSignal: Signal<([WebAuthorization], [PeerId : Peer])?, NoError> = .single(nil) |> then(webSessions(network: account.network) |> map(Optional.init))
+    let websitesSignal: Signal<([WebAuthorization], [PeerId : Peer])?, NoError> = .single(nil) |> then(webSessions(network: context.account.network) |> map(Optional.init))
     websitesPromise.set(websitesSignal)
     
     let previousMode = Atomic<RecentSessionsMode>(value: .sessions)
     
-    let signal = combineLatest((account.applicationContext as! TelegramApplicationContext).presentationData, mode.get(), statePromise.get(), sessionsPromise.get(), websitesPromise.get())
-        |> deliverOnMainQueue
-        |> map { presentationData, mode, state, sessions, websitesAndPeers -> (ItemListControllerState, (ItemListNodeState<RecentSessionsEntry>, RecentSessionsEntry.ItemGenerationArguments)) in
-            var rightNavigationButton: ItemListNavigationButton?
-            let websites = websitesAndPeers?.0
-            let peers = websitesAndPeers?.1
-            
-            if let sessions = sessions, sessions.count > 1 {
-                if state.terminatingOtherSessions {
-                    rightNavigationButton = ItemListNavigationButton(content: .none, style: .activity, enabled: true, action: {})
-                } else if state.editing {
-                    rightNavigationButton = ItemListNavigationButton(content: .text(presentationData.strings.Common_Done), style: .bold, enabled: true, action: {
-                        updateState { state in
-                            return state.withUpdatedEditing(false)
-                        }
-                    })
-                } else {
-                    rightNavigationButton = ItemListNavigationButton(content: .text(presentationData.strings.Common_Edit), style: .regular, enabled: true, action: {
-                        updateState { state in
-                            return state.withUpdatedEditing(true)
-                        }
-                    })
-                }
-            }
-            
-            var emptyStateItem: ItemListControllerEmptyStateItem?
-            if sessions == nil {
-                emptyStateItem = ItemListLoadingIndicatorEmptyStateItem(theme: presentationData.theme)
-            } else if let sessions = sessions, sessions.count == 1 {
-                emptyStateItem = RecentSessionsEmptyStateItem(theme: presentationData.theme, strings: presentationData.strings)
-            }
-            
-            let title: ItemListControllerTitle
-            let entries: [RecentSessionsEntry]
-            if let websites = websites, !websites.isEmpty {
-                title = .sectionControl([presentationData.strings.AuthSessions_Sessions, presentationData.strings.AuthSessions_LoggedIn], mode.rawValue)
+    let signal = combineLatest(context.sharedContext.presentationData, mode.get(), statePromise.get(), sessionsPromise.get(), websitesPromise.get())
+    |> deliverOnMainQueue
+    |> map { presentationData, mode, state, sessions, websitesAndPeers -> (ItemListControllerState, (ItemListNodeState<RecentSessionsEntry>, RecentSessionsEntry.ItemGenerationArguments)) in
+        var rightNavigationButton: ItemListNavigationButton?
+        let websites = websitesAndPeers?.0
+        let peers = websitesAndPeers?.1
+        
+        if let sessions = sessions, sessions.count > 1 {
+            if state.terminatingOtherSessions {
+                rightNavigationButton = ItemListNavigationButton(content: .none, style: .activity, enabled: true, action: {})
+            } else if state.editing {
+                rightNavigationButton = ItemListNavigationButton(content: .text(presentationData.strings.Common_Done), style: .bold, enabled: true, action: {
+                    updateState { state in
+                        return state.withUpdatedEditing(false)
+                    }
+                })
             } else {
-                title = .text(presentationData.strings.AuthSessions_Title)
+                rightNavigationButton = ItemListNavigationButton(content: .text(presentationData.strings.Common_Edit), style: .regular, enabled: true, action: {
+                    updateState { state in
+                        return state.withUpdatedEditing(true)
+                    }
+                })
             }
-            
-            var animateChanges = true
-            switch (mode, websites, peers) {
-                case (.websites, let websites, let peers):
-                    entries = recentSessionsControllerEntries(presentationData: presentationData, state: state, websites: websites, peers: peers)
-                default:
-                    entries = recentSessionsControllerEntries(presentationData: presentationData, state: state, sessions: sessions)
-            }
-            
-            let previousMode = previousMode.swap(mode)
-            var crossfadeState = false
-            
-            if previousMode != mode {
-                crossfadeState = true
-                animateChanges = false
-            }
-            
-            let controllerState = ItemListControllerState(theme: presentationData.theme, title: title, leftNavigationButton: nil, rightNavigationButton: rightNavigationButton, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back), animateChanges: true)
-            let listState = ItemListNodeState(entries: entries, style: .blocks, emptyStateItem: emptyStateItem, crossfadeState: crossfadeState, animateChanges: animateChanges)
-            
-            return (controllerState, (listState, arguments))
-        } |> afterDisposed {
-            actionsDisposable.dispose()
+        }
+        
+        var emptyStateItem: ItemListControllerEmptyStateItem?
+        if sessions == nil {
+            emptyStateItem = ItemListLoadingIndicatorEmptyStateItem(theme: presentationData.theme)
+        } else if let sessions = sessions, sessions.count == 1 {
+            emptyStateItem = RecentSessionsEmptyStateItem(theme: presentationData.theme, strings: presentationData.strings)
+        }
+        
+        let title: ItemListControllerTitle
+        let entries: [RecentSessionsEntry]
+        if let websites = websites, !websites.isEmpty {
+            title = .sectionControl([presentationData.strings.AuthSessions_Sessions, presentationData.strings.AuthSessions_LoggedIn], mode.rawValue)
+        } else {
+            title = .text(presentationData.strings.AuthSessions_Title)
+        }
+        
+        var animateChanges = true
+        switch (mode, websites, peers) {
+            case (.websites, let websites, let peers):
+                entries = recentSessionsControllerEntries(presentationData: presentationData, state: state, websites: websites, peers: peers)
+            default:
+                entries = recentSessionsControllerEntries(presentationData: presentationData, state: state, sessions: sessions)
+        }
+        
+        let previousMode = previousMode.swap(mode)
+        var crossfadeState = false
+        
+        if previousMode != mode {
+            crossfadeState = true
+            animateChanges = false
+        }
+        
+        let controllerState = ItemListControllerState(theme: presentationData.theme, title: title, leftNavigationButton: nil, rightNavigationButton: rightNavigationButton, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back), animateChanges: true)
+        let listState = ItemListNodeState(entries: entries, style: .blocks, emptyStateItem: emptyStateItem, crossfadeState: crossfadeState, animateChanges: animateChanges, userInteractionEnabled: emptyStateItem == nil)
+        
+        return (controllerState, (listState, arguments))
+    } |> afterDisposed {
+        actionsDisposable.dispose()
     }
     
-    let controller = ItemListController(account: account, state: signal)
+    let controller = ItemListController(context: context, state: signal)
     controller.titleControlValueChanged = { [weak mode] index in
         mode?.set(index == 0 ? .sessions : .websites)
     }

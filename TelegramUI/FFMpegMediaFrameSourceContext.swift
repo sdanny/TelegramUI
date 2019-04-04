@@ -72,11 +72,24 @@ private func readPacketCallback(userData: UnsafeMutableRawPointer?, buffer: Unsa
     print("maxOffset \(maxOffset)")
     #endif*/
     
+    let resourceSize: Int = resourceReference.resource.size ?? Int(Int32.max - 1)
+    let readCount = min(resourceSize - context.readingOffset, Int(bufferSize))
+    let requestRange: Range<Int> = context.readingOffset ..< (context.readingOffset + readCount)
+    
+    if let maximumFetchSize = context.maximumFetchSize {
+        context.touchedRanges.insert(integersIn: requestRange)
+        var totalCount = 0
+        for range in context.touchedRanges.rangeView {
+            totalCount += range.count
+        }
+        if totalCount > maximumFetchSize {
+            context.readingError = true
+            return 0
+        }
+    }
+    
     if streamable {
         let data: Signal<Data, NoError>
-        let resourceSize: Int = resourceReference.resource.size ?? Int(Int32.max - 1)
-        let readCount = min(resourceSize - context.readingOffset, Int(bufferSize))
-        let requestRange: Range<Int> = context.readingOffset ..< (context.readingOffset + readCount)
         data = postbox.mediaBox.resourceData(resourceReference.resource, size: resourceSize, in: requestRange, mode: .complete)
         if readCount == 0 {
             fetchedData = Data()
@@ -85,14 +98,22 @@ private func readPacketCallback(userData: UnsafeMutableRawPointer?, buffer: Unsa
                 fetchedData = fileData
             } else {
                 let semaphore = DispatchSemaphore(value: 0)
+                let _ = context.currentSemaphore.swap(semaphore)
+                var completedRequest = false
                 let disposable = data.start(next: { data in
                     if data.count == readCount {
                         fetchedData = data
+                        completedRequest = true
                         semaphore.signal()
                     }
                 })
                 semaphore.wait()
+                let _ = context.currentSemaphore.swap(nil)
                 disposable.dispose()
+                if !completedRequest {
+                    context.readingError = true
+                    return 0
+                }
             }
         }
     } else {
@@ -115,7 +136,9 @@ private func readPacketCallback(userData: UnsafeMutableRawPointer?, buffer: Unsa
         } else {
             let data = postbox.mediaBox.resourceData(resourceReference.resource, pathExtension: nil, option: .complete(waitUntilFetchStatus: false))
             let semaphore = DispatchSemaphore(value: 0)
+            let _ = context.currentSemaphore.swap(semaphore)
             let readingOffset = context.readingOffset
+            var completedRequest = false
             let disposable = data.start(next: { next in
                 if next.complete {
                     let readCount = max(0, min(next.size - readingOffset, Int(bufferSize)))
@@ -132,11 +155,17 @@ private func readPacketCallback(userData: UnsafeMutableRawPointer?, buffer: Unsa
                         fetchedData = data
                         close(fd)
                     }
+                    completedRequest = true
                     semaphore.signal()
                 }
             })
             semaphore.wait()
+            let _ = context.currentSemaphore.swap(nil)
             disposable.dispose()
+            if !completedRequest {
+                context.readingError = true
+                return 0
+            }
         }
     }
     if let fetchedData = fetchedData {
@@ -147,6 +176,10 @@ private func readPacketCallback(userData: UnsafeMutableRawPointer?, buffer: Unsa
         context.readingOffset += Int(fetchedCount)
     }
     
+    if context.closed {
+        context.readingError = true
+        return 0
+    }
     return fetchedCount
 }
 
@@ -169,14 +202,22 @@ private func seekCallback(userData: UnsafeMutableRawPointer?, offset: Int64, whe
                 var resultSize: Int = Int(Int32.max - 1)
                 let data = postbox.mediaBox.resourceData(resourceReference.resource, pathExtension: nil, option: .complete(waitUntilFetchStatus: false))
                 let semaphore = DispatchSemaphore(value: 0)
+                let _ = context.currentSemaphore.swap(semaphore)
+                var completedRequest = false
                 let disposable = data.start(next: { next in
                     if next.complete {
                         resultSize = Int(next.size)
+                        completedRequest = true
                         semaphore.signal()
                     }
                 })
                 semaphore.wait()
+                let _ = context.currentSemaphore.swap(nil)
                 disposable.dispose()
+                if !completedRequest {
+                    context.readingError = true
+                    return 0
+                }
                 resourceSize = resultSize
             }
         } else {
@@ -185,7 +226,7 @@ private func seekCallback(userData: UnsafeMutableRawPointer?, offset: Int64, whe
     }
     
     if (whence & FFMPEG_AVSEEK_SIZE) != 0 {
-        result = Int64(resourceSize == Int(Int32.max - 1) ? -1 : resourceSize)
+        result = Int64(resourceSize == Int(Int32.max - 1) ? 0 : resourceSize)
     } else {
         context.readingOffset = Int(min(Int64(resourceSize), offset))
         
@@ -210,6 +251,11 @@ private func seekCallback(userData: UnsafeMutableRawPointer?, offset: Int64, whe
         }
     }
     
+    if context.closed {
+        context.readingError = true
+        return 0
+    }
+    
     return result
 }
 
@@ -232,13 +278,22 @@ final class FFMpegMediaFrameSourceContext: NSObject {
     fileprivate let fetchedFullDataDisposable = MetaDisposable()
     fileprivate var requestedCompleteFetch = false
     
-    fileprivate var readingError = false
+    fileprivate var readingError = false {
+        didSet {
+            self.fetchedDataDisposable.dispose()
+            self.fetchedFullDataDisposable.dispose()
+        }
+    }
     
     private var initializedState: InitializedState?
     private var packetQueue: [FFMpegPacket] = []
     
     private var preferSoftwareDecoding: Bool = false
     fileprivate var fetchAutomatically: Bool = true
+    fileprivate var maximumFetchSize: Int? = nil
+    fileprivate var touchedRanges = IndexSet()
+    
+    let currentSemaphore = Atomic<DispatchSemaphore?>(value: nil)
     
     init(thread: Thread) {
         self.thread = thread
@@ -251,7 +306,7 @@ final class FFMpegMediaFrameSourceContext: NSObject {
         self.fetchedFullDataDisposable.dispose()
     }
     
-    func initializeState(postbox: Postbox, resourceReference: MediaResourceReference, tempFilePath: String?, streamable: Bool, video: Bool, preferSoftwareDecoding: Bool, fetchAutomatically: Bool) {
+    func initializeState(postbox: Postbox, resourceReference: MediaResourceReference, tempFilePath: String?, streamable: Bool, video: Bool, preferSoftwareDecoding: Bool, fetchAutomatically: Bool, maximumFetchSize: Int?) {
         if self.readingError || self.initializedState != nil {
             return
         }
@@ -265,6 +320,7 @@ final class FFMpegMediaFrameSourceContext: NSObject {
         self.statsCategory = video ? .video : .audio
         self.preferSoftwareDecoding = preferSoftwareDecoding
         self.fetchAutomatically = fetchAutomatically
+        self.maximumFetchSize = maximumFetchSize
         
         var preferSoftwareAudioDecoding = false
         if case let .media(media, _) = resourceReference, let file = media.media as? TelegramMediaFile {
@@ -489,7 +545,7 @@ final class FFMpegMediaFrameSourceContext: NSObject {
         return nil
     }
     
-    func seek(timestamp: Double, completed: (FFMpegMediaFrameSourceDescriptionSet, CMTime) -> Void) {
+    func seek(timestamp: Double, completed: ((FFMpegMediaFrameSourceDescriptionSet, CMTime)?) -> Void) {
         if let initializedState = self.initializedState {
             self.packetQueue.removeAll()
             
@@ -581,8 +637,14 @@ final class FFMpegMediaFrameSourceContext: NSObject {
                 }
             }
             
-            completed(FFMpegMediaFrameSourceDescriptionSet(audio: audioDescription, video: videoDescription, extraVideoFrames: extraVideoFrames), actualPts)
+            completed((FFMpegMediaFrameSourceDescriptionSet(audio: audioDescription, video: videoDescription, extraVideoFrames: extraVideoFrames), actualPts))
+        } else {
+            completed(nil)
         }
+    }
+    
+    func close() {
+        self.closed = true
     }
 }
 

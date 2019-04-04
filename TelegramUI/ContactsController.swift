@@ -50,7 +50,7 @@ private func fixListNodeScrolling(_ listNode: ListView, searchNode: NavigationBa
 }
 
 public class ContactsController: ViewController {
-    private let account: Account
+    private let context: AccountContext
     
     private var contactsNode: ContactsControllerNode {
         return self.displayNode as! ContactsControllerNode
@@ -70,10 +70,12 @@ public class ContactsController: ViewController {
     
     private var searchContentNode: NavigationBarSearchContentNode?
     
-    public init(account: Account) {
-        self.account = account
+    var switchToChatsController: (() -> Void)?
+    
+    public init(context: AccountContext) {
+        self.context = context
         
-        self.presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+        self.presentationData = context.sharedContext.currentPresentationData.with { $0 }
         
         super.init(navigationBarPresentationData: NavigationBarPresentationData(presentationData: self.presentationData))
         
@@ -104,7 +106,7 @@ public class ContactsController: ViewController {
             }
         }
         
-        self.presentationDataDisposable = (account.telegramApplicationContext.presentationData
+        self.presentationDataDisposable = (context.sharedContext.presentationData
         |> deliverOnMainQueue).start(next: { [weak self] presentationData in
             if let strongSelf = self {
                 let previousTheme = strongSelf.presentationData.theme
@@ -118,24 +120,25 @@ public class ContactsController: ViewController {
             }
         })
         
-        let preferencesKey = PostboxViewKey.preferences(keys: Set([ApplicationSpecificPreferencesKeys.contactSynchronizationSettings]))
         if #available(iOSApplicationExtension 10.0, *) {
-            let warningKey = PostboxViewKey.noticeEntry(ApplicationSpecificNotice.contactsPermissionWarningKey())
-            self.authorizationDisposable = (combineLatest(DeviceAccess.authorizationStatus(account: account, subject: .contacts), account.postbox.combinedView(keys: [warningKey, preferencesKey])
-                |> map { combined -> (Bool, ContactsSortOrder) in
-                    let settings = ((combined.views[preferencesKey] as? PreferencesView)?.values[ApplicationSpecificPreferencesKeys.contactSynchronizationSettings] as? ContactSynchronizationSettings)
-                    let synchronizeDeviceContacts: Bool = settings?.synchronizeDeviceContacts ?? true
-                    let sortOrder: ContactsSortOrder = settings?.sortOrder ?? .presence
-                    if !synchronizeDeviceContacts {
-                        return (true, sortOrder)
-                    }
-                    let timestamp = (combined.views[warningKey] as? NoticeEntryView)?.value.flatMap({ ApplicationSpecificNotice.getTimestampValue($0) })
-                    if let timestamp = timestamp, timestamp > 0 {
-                        return (true, sortOrder)
-                    } else {
-                        return (false, sortOrder)
-                    }
-                })
+            self.authorizationDisposable = (combineLatest(DeviceAccess.authorizationStatus(context: context, subject: .contacts), combineLatest(context.sharedContext.accountManager.noticeEntry(key: ApplicationSpecificNotice.contactsPermissionWarningKey()), context.account.postbox.preferencesView(keys: [PreferencesKeys.contactsSettings]), context.sharedContext.accountManager.sharedData(keys: [ApplicationSpecificSharedDataKeys.contactSynchronizationSettings]))
+            |> map { noticeView, preferences, sharedData -> (Bool, ContactsSortOrder) in
+                let settings: ContactsSettings = preferences.values[PreferencesKeys.contactsSettings] as? ContactsSettings ?? ContactsSettings.defaultSettings
+                let synchronizeDeviceContacts: Bool = settings.synchronizeContacts
+                
+                let contactsSettings = sharedData.entries[ApplicationSpecificSharedDataKeys.contactSynchronizationSettings] as? ContactSynchronizationSettings
+                
+                let sortOrder: ContactsSortOrder = contactsSettings?.sortOrder ?? .presence
+                if !synchronizeDeviceContacts {
+                    return (true, sortOrder)
+                }
+                let timestamp = noticeView.value.flatMap({ ApplicationSpecificNotice.getTimestampValue($0) })
+                if let timestamp = timestamp, timestamp > 0 {
+                    return (true, sortOrder)
+                } else {
+                    return (false, sortOrder)
+                }
+            })
             |> deliverOnMainQueue).start(next: { [weak self] status, suppressedAndSortOrder in
                 if let strongSelf = self {
                     let (suppressed, sortOrder) = suppressedAndSortOrder
@@ -144,9 +147,9 @@ public class ContactsController: ViewController {
                 }
             })
         } else {
-            self.sortOrderPromise.set(account.postbox.combinedView(keys: [preferencesKey])
-            |> map { combined -> ContactsSortOrder in
-                let settings = ((combined.views[preferencesKey] as? PreferencesView)?.values[ApplicationSpecificPreferencesKeys.contactSynchronizationSettings] as? ContactSynchronizationSettings)
+            self.sortOrderPromise.set(context.sharedContext.accountManager.sharedData(keys: [ApplicationSpecificSharedDataKeys.contactSynchronizationSettings])
+            |> map { sharedData -> ContactsSortOrder in
+                let settings = sharedData.entries[ApplicationSpecificSharedDataKeys.contactSynchronizationSettings] as? ContactSynchronizationSettings
                 return settings?.sortOrder ?? .presence
             })
         }
@@ -179,30 +182,52 @@ public class ContactsController: ViewController {
     }
     
     override public func loadDisplayNode() {
-        self.displayNode = ContactsControllerNode(account: self.account, sortOrder: sortOrderPromise.get() |> distinctUntilChanged, present: { [weak self] c, a in
+        self.displayNode = ContactsControllerNode(context: self.context, sortOrder: sortOrderPromise.get() |> distinctUntilChanged, present: { [weak self] c, a in
             self?.present(c, in: .window(.root), with: a)
         })
         self._ready.set(self.contactsNode.contactListNode.ready)
         
         self.contactsNode.navigationBar = self.navigationBar
         
-        self.contactsNode.requestDeactivateSearch = { [weak self] in
-            self?.deactivateSearch()
+        let openPeer: (ContactListPeer, Bool) -> Void = { [weak self] peer, fromSearch in
+            if let strongSelf = self {
+                strongSelf.contactsNode.contactListNode.listNode.clearHighlightAnimated(true)
+                switch peer {
+                    case let .peer(peer, _):
+                        if let navigationController = strongSelf.navigationController as? NavigationController {
+                            let infoController = userInfoController(context: strongSelf.context, peerId: peer.id)
+                            navigationController.pushViewController(infoController)
+                        }
+                    case let .deviceContact(id, _):
+                        let _ = ((strongSelf.context.sharedContext.contactDataManager?.extendedData(stableId: id) ?? .single(nil))
+                        |> take(1)
+                        |> deliverOnMainQueue).start(next: { value in
+                            guard let strongSelf = self, let value = value else {
+                                return
+                            }
+                            (strongSelf.navigationController as? NavigationController)?.pushViewController(deviceContactInfoController(context: strongSelf.context, subject: .vcard(nil, id, value)))
+                        })
+                }
+            }
         }
         
-        self.contactsNode.requestOpenPeerFromSearch = { [weak self] peer in
-            self?.contactsNode.contactListNode.openPeer?(peer)
+        self.contactsNode.requestDeactivateSearch = { [weak self] in
+            self?.deactivateSearch(animated: true)
+        }
+        
+        self.contactsNode.requestOpenPeerFromSearch = { peer in
+            openPeer(peer, true)
         }
         
         self.contactsNode.contactListNode.openPrivacyPolicy = { [weak self] in
             if let strongSelf = self {
-                openExternalUrl(account: strongSelf.account, context: .generic, url: "https://telegram.org/privacy", forceExternal: true, presentationData: strongSelf.presentationData, applicationContext: strongSelf.account.telegramApplicationContext, navigationController: strongSelf.navigationController as? NavigationController, dismissInput: {})
+                openExternalUrl(context: strongSelf.context, urlContext: .generic, url: "https://telegram.org/privacy", forceExternal: true, presentationData: strongSelf.presentationData, navigationController: strongSelf.navigationController as? NavigationController, dismissInput: {})
             }
         }
         
         self.contactsNode.contactListNode.suppressPermissionWarning = { [weak self] in
             if let strongSelf = self {
-                presentContactsWarningSuppression(account: strongSelf.account, present: { c, a in
+                presentContactsWarningSuppression(context: strongSelf.context, present: { c, a in
                     strongSelf.present(c, in: .window(.root), with: a)
                 })
             }
@@ -212,30 +237,13 @@ public class ContactsController: ViewController {
             self?.activateSearch()
         }
         
-        self.contactsNode.contactListNode.openPeer = { [weak self] peer in
-            if let strongSelf = self {
-                strongSelf.contactsNode.contactListNode.listNode.clearHighlightAnimated(true)
-                switch peer {
-                    case let .peer(peer, _):
-                        let infoController = userInfoController(account: strongSelf.account, peerId: peer.id)
-                        (strongSelf.navigationController as? NavigationController)?.pushViewController(infoController)
-//                        (strongSelf.navigationController as? NavigationController)?.pushViewController(ChatController(account: strongSelf.account, chatLocation: .peer(peer.id)))
-                    case let .deviceContact(id, _):
-                        let _ = (strongSelf.account.telegramApplicationContext.contactDataManager.extendedData(stableId: id)
-                        |> take(1)
-                        |> deliverOnMainQueue).start(next: { value in
-                            guard let strongSelf = self, let value = value else {
-                                return
-                            }
-                            (strongSelf.navigationController as? NavigationController)?.pushViewController(deviceContactInfoController(account: strongSelf.account, subject: .vcard(nil, id, value)))
-                        })
-                }
-            }
+        self.contactsNode.contactListNode.openPeer = { peer in
+            openPeer(peer, false)
         }
         
         self.contactsNode.openInvite = { [weak self] in
             if let strongSelf = self {
-                (strongSelf.navigationController as? NavigationController)?.pushViewController(InviteContactsController(account: strongSelf.account))
+                (strongSelf.navigationController as? NavigationController)?.pushViewController(InviteContactsController(context: strongSelf.context))
             }
         }
         
@@ -296,11 +304,11 @@ public class ContactsController: ViewController {
         }
     }
     
-    private func deactivateSearch() {
+    private func deactivateSearch(animated: Bool) {
         if !self.displayNavigationBar {
-            self.setDisplayNavigationBar(true, transition: .animated(duration: 0.5, curve: .spring))
+            self.setDisplayNavigationBar(true, transition: animated ? .animated(duration: 0.5, curve: .spring) : .immediate)
             if let searchContentNode = self.searchContentNode {
-                self.contactsNode.deactivateSearch(placeholderNode: searchContentNode.placeholderNode)
+                self.contactsNode.deactivateSearch(placeholderNode: searchContentNode.placeholderNode, animated: animated)
             }
         }
     }
@@ -309,11 +317,11 @@ public class ContactsController: ViewController {
         let updateSortOrder: (ContactsSortOrder) -> Void = { [weak self] sortOrder in
             if let strongSelf = self {
                 strongSelf.sortOrderPromise.set(.single(sortOrder))
-                let _ = updateContactSettingsInteractively(postbox: strongSelf.account.postbox) { current -> ContactSynchronizationSettings in
+                let _ = updateContactSettingsInteractively(accountManager: strongSelf.context.sharedContext.accountManager, { current -> ContactSynchronizationSettings in
                     var updated = current
                     updated.sortOrder = sortOrder
                     return updated
-                }.start()
+                }).start()
             }
         }
         
@@ -337,7 +345,7 @@ public class ContactsController: ViewController {
     }
     
     @objc func addPressed() {
-        let _ = (DeviceAccess.authorizationStatus(account: self.account, subject: .contacts)
+        let _ = (DeviceAccess.authorizationStatus(context: self.context, subject: .contacts)
         |> take(1)
         |> deliverOnMainQueue).start(next: { [weak self] status in
             guard let strongSelf = self else {
@@ -347,24 +355,24 @@ public class ContactsController: ViewController {
             switch status {
                 case .allowed:
                     let contactData = DeviceContactExtendedData(basicData: DeviceContactBasicData(firstName: "", lastName: "", phoneNumbers: [DeviceContactPhoneNumberData(label: "_$!<Home>!$_", value: "")]), middleName: "", prefix: "", suffix: "", organization: "", jobTitle: "", department: "", emailAddresses: [], urls: [], addresses: [], birthdayDate: nil, socialProfiles: [], instantMessagingProfiles: [])
-                    strongSelf.present(deviceContactInfoController(account: strongSelf.account, subject: .create(peer: nil, contactData: contactData, completion: { peer, stableId, contactData in
+                    strongSelf.present(deviceContactInfoController(context: strongSelf.context, subject: .create(peer: nil, contactData: contactData, completion: { peer, stableId, contactData in
                         guard let strongSelf = self else {
                             return
                         }
                         if let peer = peer {
-                            if let infoController = peerInfoController(account: strongSelf.account, peer: peer) {
+                            if let infoController = peerInfoController(context: strongSelf.context, peer: peer) {
                                 (strongSelf.navigationController as? NavigationController)?.pushViewController(infoController)
                             }
                         } else {
-                            (strongSelf.navigationController as? NavigationController)?.pushViewController(deviceContactInfoController(account: strongSelf.account, subject: .vcard(nil, stableId, contactData)))
+                            (strongSelf.navigationController as? NavigationController)?.pushViewController(deviceContactInfoController(context: strongSelf.context, subject: .vcard(nil, stableId, contactData)))
                         }
                     })), in: .window(.root), with: ViewControllerPresentationArguments(presentationAnimation: .modalSheet))
                 case .notDetermined:
-                    DeviceAccess.authorizeAccess(to: .contacts, account: strongSelf.account)
+                    DeviceAccess.authorizeAccess(to: .contacts, context: strongSelf.context)
                 default:
                     let presentationData = strongSelf.presentationData
-                    strongSelf.present(standardTextAlertController(theme: AlertControllerTheme(presentationTheme: presentationData.theme), title: presentationData.strings.AccessDenied_Title, text: presentationData.strings.Contacts_AccessDeniedError, actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_NotNow, action: {}), TextAlertAction(type: .genericAction, title: presentationData.strings.AccessDenied_Settings, action: {
-                        self?.account.telegramApplicationContext.applicationBindings.openSettings()
+                    strongSelf.present(textAlertController(context: strongSelf.context, title: presentationData.strings.AccessDenied_Title, text: presentationData.strings.Contacts_AccessDeniedError, actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_NotNow, action: {}), TextAlertAction(type: .genericAction, title: presentationData.strings.AccessDenied_Settings, action: {
+                        self?.context.sharedContext.applicationBindings.openSettings()
                     })]), in: .window(.root))
             }
         })

@@ -57,7 +57,7 @@ class SearchBarPlaceholderNode: ASDisplayNode {
         
         self.labelNode = TextNode()
         self.labelNode.isOpaque = false
-        self.labelNode.isLayerBacked = true
+        self.labelNode.isUserInteractionEnabled = false
         
         super.init()
         
@@ -71,7 +71,23 @@ class SearchBarPlaceholderNode: ASDisplayNode {
     override func didLoad() {
         super.didLoad()
         
-        self.backgroundNode.view.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(backgroundTap(_:))))
+        let gestureRecognizer = TapLongTapOrDoubleTapGestureRecognizer(target: self, action: #selector(self.backgroundTap(_:)))
+        gestureRecognizer.highlight = { [weak self] point in
+            guard let strongSelf = self else {
+                return
+            }
+            if let _ = point {
+                strongSelf.backgroundNode.layer.animate(from: (strongSelf.backgroundNode.backgroundColor ?? strongSelf.foregroundColor).cgColor, to: strongSelf.foregroundColor.withMultipliedBrightnessBy(0.9).cgColor, keyPath: "backgroundColor", timingFunction: kCAMediaTimingFunctionEaseInEaseOut, duration: 0.2)
+                strongSelf.backgroundNode.backgroundColor = strongSelf.foregroundColor.withMultipliedBrightnessBy(0.9)
+            } else {
+                strongSelf.backgroundNode.layer.animate(from: (strongSelf.backgroundNode.backgroundColor ?? strongSelf.foregroundColor).cgColor, to: strongSelf.foregroundColor.cgColor, keyPath: "backgroundColor", timingFunction: kCAMediaTimingFunctionEaseInEaseOut, duration: 0.4)
+                strongSelf.backgroundNode.backgroundColor = strongSelf.foregroundColor
+            }
+        }
+        gestureRecognizer.tapActionAtPoint = { _ in
+            return .waitForSingleTap
+        }
+        self.backgroundNode.view.addGestureRecognizer(gestureRecognizer)
     }
     
     func asyncLayout() -> (_ placeholderString: NSAttributedString?, _ constrainedSize: CGSize, _ expansionProgress: CGFloat, _ iconColor: UIColor, _ foregroundColor: UIColor, _ backgroundColor: UIColor, _ transition: ContainedViewLayoutTransition) -> (CGFloat, () -> Void) {
@@ -99,7 +115,7 @@ class SearchBarPlaceholderNode: ASDisplayNode {
                     strongSelf.fillBackgroundColor = backgroundColor
                     strongSelf.foregroundColor = foregroundColor
                     strongSelf.iconColor = iconColor
-                    strongSelf.backgroundNode.isUserInteractionEnabled = expansionProgress > 1.0 - CGFloat.ulpOfOne
+                    strongSelf.backgroundNode.isUserInteractionEnabled = expansionProgress > 0.9999
                     
                     if let updatedColor = updatedColor {
                         strongSelf.backgroundNode.backgroundColor = updatedColor
@@ -147,11 +163,9 @@ class SearchBarPlaceholderNode: ASDisplayNode {
         }
     }
     
-    @objc private func backgroundTap(_ recognizer: UITapGestureRecognizer) {
+    @objc private func backgroundTap(_ recognizer: TapLongTapOrDoubleTapGestureRecognizer) {
         if case .ended = recognizer.state {
-            if let activate = self.activate {
-                activate()
-            }
+            self.activate?()
         }
     }
 }

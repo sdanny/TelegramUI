@@ -9,7 +9,7 @@ public enum NavigateToChatKeepStack {
     case never
 }
 
-public func navigateToChatController(navigationController: NavigationController, chatController: ChatController? = nil, account: Account, chatLocation: ChatLocation, messageId: MessageId? = nil, botStart: ChatControllerInitialBotStart? = nil, keepStack: NavigateToChatKeepStack = .default, purposefulAction: (() -> Void)? = nil, scrollToEndIfExists: Bool = false, animated: Bool = true, completion: @escaping () -> Void = {}) {
+public func navigateToChatController(navigationController: NavigationController, chatController: ChatController? = nil, context: AccountContext, chatLocation: ChatLocation, messageId: MessageId? = nil, botStart: ChatControllerInitialBotStart? = nil, keepStack: NavigateToChatKeepStack = .default, purposefulAction: (() -> Void)? = nil, scrollToEndIfExists: Bool = false, animated: Bool = true, completion: @escaping () -> Void = {}) {
     var found = false
     var isFirst = true
     for controller in navigationController.viewControllers.reversed() {
@@ -19,13 +19,18 @@ public func navigateToChatController(navigationController: NavigationController,
                     if let navigationController = navigationController, let controller = controller {
                         let _ = navigationController.popToViewController(controller, animated: animated)
                     }
+                }, customPresentProgress: { [weak navigationController] c, a in
+                    (navigationController?.viewControllers.last as? ViewController)?.present(c, in: .window(.root), with: a)
                 })
             } else if scrollToEndIfExists && isFirst {
                 controller.scrollToEndOfHistory()
+                let _ = navigationController.popToViewController(controller, animated: animated)
+                completion()
+            } else {
+                let _ = navigationController.popToViewController(controller, animated: animated)
+                completion()
             }
             controller.purposefulAction = purposefulAction
-            let _ = navigationController.popToViewController(controller, animated: animated)
-            completion()
             found = true
             break
         }
@@ -37,13 +42,13 @@ public func navigateToChatController(navigationController: NavigationController,
         if let chatController = chatController {
             controller = chatController
         } else {
-            controller = ChatController(account: account, chatLocation: chatLocation, messageId: messageId, botStart: botStart)
+            controller = ChatController(context: context, chatLocation: chatLocation, messageId: messageId, botStart: botStart)
         }
         controller.purposefulAction = purposefulAction
         let resolvedKeepStack: Bool
         switch keepStack {
             case .default:
-                resolvedKeepStack = account.telegramApplicationContext.immediateExperimentalUISettings.keepChatNavigationStack
+                resolvedKeepStack = context.sharedContext.immediateExperimentalUISettings.keepChatNavigationStack
             case .always:
                 resolvedKeepStack = true
             case .never:
@@ -89,13 +94,13 @@ public func isInlineControllerForChatNotificationOverlayPresentation(_ controlle
     return false
 }
 
-public func isOverlayControllerForChatNotificationOverlayPresentation(_ controller: ViewController) -> Bool {
-    if controller is GalleryController || controller is AvatarGalleryController || controller is ThemeGalleryController || controller is InstantPageGalleryController || controller is InstantVideoController {
+public func isOverlayControllerForChatNotificationOverlayPresentation(_ controller: ContainableController) -> Bool {
+    if controller is GalleryController || controller is AvatarGalleryController || controller is WallpaperGalleryController || controller is InstantPageGalleryController || controller is InstantVideoController || controller is NavigationController {
         return true
     }
     
-    if controller.isNodeLoaded {
-        if let backgroundColor = controller.displayNode.backgroundColor, !backgroundColor.isEqual(UIColor.clear) {
+    if controller.isViewLoaded {
+        if let backgroundColor = controller.view.backgroundColor, !backgroundColor.isEqual(UIColor.clear) {
             return true
         }
         

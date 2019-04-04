@@ -16,6 +16,7 @@ class ChatMessageMediaBubbleContentNode: ChatMessageBubbleContentNode {
     private var highlightedState: Bool = false
     
     private var media: Media?
+    private var automaticPlayback: Bool?
     
     override var visibility: ListViewItemNodeVisibility {
         didSet {
@@ -34,7 +35,16 @@ class ChatMessageMediaBubbleContentNode: ChatMessageBubbleContentNode {
         self.interactiveImageNode.activateLocalContent = { [weak self] mode in
             if let strongSelf = self {
                 if let item = strongSelf.item {
-                    let _ = item.controllerInteraction.openMessage(item.message, mode == .stream ? .stream : .default)
+                    let openChatMessageMode: ChatControllerInteractionOpenMessageMode
+                    switch mode {
+                        case .default:
+                            openChatMessageMode = .default
+                        case .stream:
+                            openChatMessageMode = .stream
+                        case .automaticPlayback:
+                            openChatMessageMode = .automaticPlayback
+                    }
+                    let _ = item.controllerInteraction.openMessage(item.message, openChatMessageMode)
                 }
             }
         }
@@ -50,14 +60,40 @@ class ChatMessageMediaBubbleContentNode: ChatMessageBubbleContentNode {
         
         return { item, layoutConstants, preparePosition, selection, constrainedSize in
             var selectedMedia: Media?
-            var automaticDownload: Bool = false
+            var automaticDownload: InteractiveMediaNodeAutodownloadMode = .none
+            var automaticPlayback: Bool = false
+            var contentMode: InteractiveMediaNodeContentMode = .aspectFit
+            
             for media in item.message.media {
                 if let telegramImage = media as? TelegramMediaImage {
                     selectedMedia = telegramImage
-                    automaticDownload = shouldDownloadMediaAutomatically(settings: item.controllerInteraction.automaticMediaDownloadSettings, peerType: item.associatedData.automaticDownloadPeerType, networkType: item.associatedData.automaticDownloadNetworkType, media: telegramImage)
+                    if shouldDownloadMediaAutomatically(settings: item.controllerInteraction.automaticMediaDownloadSettings, peerType: item.associatedData.automaticDownloadPeerType, networkType: item.associatedData.automaticDownloadNetworkType, authorPeerId: item.message.author?.id, contactsPeerIds: item.associatedData.contactsPeerIds, media: telegramImage) {
+                        automaticDownload = .full
+                    }
                 } else if let telegramFile = media as? TelegramMediaFile {
                     selectedMedia = telegramFile
-                    automaticDownload = shouldDownloadMediaAutomatically(settings: item.controllerInteraction.automaticMediaDownloadSettings, peerType: item.associatedData.automaticDownloadPeerType, networkType: item.associatedData.automaticDownloadNetworkType, media: telegramFile)
+                    if shouldDownloadMediaAutomatically(settings: item.controllerInteraction.automaticMediaDownloadSettings, peerType: item.associatedData.automaticDownloadPeerType, networkType: item.associatedData.automaticDownloadNetworkType, authorPeerId: item.message.author?.id, contactsPeerIds: item.associatedData.contactsPeerIds, media: telegramFile) {
+                        automaticDownload = .full
+                    } else if shouldPredownloadMedia(settings: item.controllerInteraction.automaticMediaDownloadSettings, peerType: item.associatedData.automaticDownloadPeerType, networkType: item.associatedData.automaticDownloadNetworkType, media: telegramFile) {
+                        automaticDownload = .prefetch
+                    }
+                    
+                    if !item.message.containsSecretMedia {
+                        if telegramFile.isAnimated {
+                            if case .full = automaticDownload {
+                                automaticPlayback = item.controllerInteraction.automaticMediaDownloadSettings.autoplayGifs
+                            } else {
+                                automaticPlayback = item.context.account.postbox.mediaBox.completedResourcePath(telegramFile.resource) != nil
+                            }
+                        } else if telegramFile.isVideo && item.controllerInteraction.automaticMediaDownloadSettings.autoplayVideos {
+                            if case .full = automaticDownload {
+                                automaticPlayback = true
+                            } else {
+                                automaticPlayback = item.context.account.postbox.mediaBox.completedResourcePath(telegramFile.resource) != nil
+                            }
+                        }
+                    }
+                    contentMode = .aspectFill
                 }
             }
             
@@ -86,16 +122,18 @@ class ChatMessageMediaBubbleContentNode: ChatMessageBubbleContentNode {
                     sizeCalculation = .unconstrained
             }
             
-            let (unboundSize, initialWidth, refineLayout) = interactiveImageLayout(item.account, item.presentationData.theme.theme, item.presentationData.strings, item.message, selectedMedia!, automaticDownload, item.associatedData.automaticDownloadPeerType, item.controllerInteraction.automaticMediaDownloadSettings.autoplayGifs, sizeCalculation, layoutConstants)
+            let (unboundSize, initialWidth, refineLayout) = interactiveImageLayout(item.context, item.presentationData.theme.theme, item.presentationData.strings, item.presentationData.dateTimeFormat, item.message, selectedMedia!, automaticDownload, item.associatedData.automaticDownloadPeerType, sizeCalculation, layoutConstants, contentMode)
             
-            var forceFullCorners = false
-            if let media = selectedMedia as? TelegramMediaFile, media.isAnimated {
-                forceFullCorners = true
-            }
-            
+            let forceFullCorners = false
             let contentProperties = ChatMessageBubbleContentProperties(hidesSimpleAuthorHeader: true, headerSpacing: 7.0, hidesBackground: .emptyWallpaper, forceFullCorners: forceFullCorners, forceAlignment: .none)
             
             return (contentProperties, unboundSize, initialWidth + bubbleInsets.left + bubbleInsets.right, { constrainedSize, position in
+                var wideLayout = true
+                if case let .mosaic(_, wide) = position {
+                    wideLayout = wide
+                    automaticPlayback = automaticPlayback && wide
+                }
+                
                 var updatedPosition: ChatMessageBubbleContentPosition = position
                 if forceFullCorners, case .linear = updatedPosition {
                     updatedPosition = .linear(top: .None(.None(.None)), bottom: .None(.None(.None)))
@@ -105,7 +143,7 @@ class ChatMessageMediaBubbleContentNode: ChatMessageBubbleContentNode {
                 
                 let imageCorners = chatMessageBubbleImageContentCorners(relativeContentPosition: updatedPosition, normalRadius: layoutConstants.image.defaultCornerRadius, mergedRadius: layoutConstants.image.mergedCornerRadius, mergedWithAnotherContentRadius: layoutConstants.image.contentMergedCornerRadius)
                 
-                let (refinedWidth, finishLayout) = refineLayout(CGSize(width: constrainedSize.width - bubbleInsets.left - bubbleInsets.right, height: constrainedSize.height), imageCorners)
+                let (refinedWidth, finishLayout) = refineLayout(CGSize(width: constrainedSize.width - bubbleInsets.left - bubbleInsets.right, height: constrainedSize.height), automaticPlayback, wideLayout, imageCorners)
                 
                 return (refinedWidth + bubbleInsets.left + bubbleInsets.right, { boundingWidth in
                     let (imageSize, imageApply) = finishLayout(boundingWidth - bubbleInsets.left - bubbleInsets.right)
@@ -134,7 +172,7 @@ class ChatMessageMediaBubbleContentNode: ChatMessageBubbleContentNode {
                     let statusType: ChatMessageDateAndStatusType?
                     switch position {
                         case .linear(_, .None):
-                            if item.message.effectivelyIncoming(item.account.peerId) {
+                            if item.message.effectivelyIncoming(item.context.account.peerId) {
                                 statusType = .ImageIncoming
                             } else {
                                 if item.message.flags.contains(.Failed) {
@@ -173,6 +211,7 @@ class ChatMessageMediaBubbleContentNode: ChatMessageBubbleContentNode {
                         if let strongSelf = self {
                             strongSelf.item = item
                             strongSelf.media = selectedMedia
+                            strongSelf.automaticPlayback = automaticPlayback
                             
                             let imageFrame = CGRect(origin: CGPoint(x: bubbleInsets.left, y: bubbleInsets.top), size: imageSize)
                             var transition: ContainedViewLayoutTransition = .immediate
@@ -235,7 +274,7 @@ class ChatMessageMediaBubbleContentNode: ChatMessageBubbleContentNode {
         }
     }
     
-    override func transitionNode(messageId: MessageId, media: Media) -> (ASDisplayNode, () -> UIView?)? {
+    override func transitionNode(messageId: MessageId, media: Media) -> (ASDisplayNode, () -> (UIView?, UIView?))? {
         if self.item?.message.id == messageId, let currentMedia = self.media, currentMedia.isSemanticallyEqual(to: media) {
             return self.interactiveImageNode.transitionNode()
         }
@@ -264,7 +303,25 @@ class ChatMessageMediaBubbleContentNode: ChatMessageBubbleContentNode {
         
         self.interactiveImageNode.isHidden = mediaHidden
         self.interactiveImageNode.updateIsHidden(mediaHidden)
+        
+        if let automaticPlayback = self.automaticPlayback {
+            if !automaticPlayback {
+                self.dateAndStatusNode.isHidden = false
+            } else if self.dateAndStatusNode.isHidden != mediaHidden {
+                if mediaHidden {
+                    self.dateAndStatusNode.isHidden = true
+                } else {
+                    self.dateAndStatusNode.isHidden = false
+                    self.dateAndStatusNode.layer.animateAlpha(from: 0.0, to: 1.0, duration: 0.2)
+                }
+            }
+        }
+        
         return mediaHidden
+    }
+    
+    override func playMediaWithSound() -> (() -> Void, Bool, Bool, Bool, ASDisplayNode?)? {
+        return self.interactiveImageNode.playMediaWithSound()
     }
     
     override func tapActionAtPoint(_ point: CGPoint, gesture: TapLongTapOrDoubleTapGesture) -> ChatMessageBubbleContentTapAction {

@@ -5,8 +5,8 @@ import Postbox
 import SwiftSignalKit
 import TelegramCore
 
-class ContactSelectionController: ViewController {
-    private let account: Account
+class ContactSelectionController: ViewController, PresentableController {
+    private let context: AccountContext
     private let autoDismiss: Bool
     
     private var contactsNode: ContactSelectionControllerNode {
@@ -61,17 +61,19 @@ class ContactSelectionController: ViewController {
         }
     }
     
-    init(account: Account, autoDismiss: Bool = true, title: @escaping (PresentationStrings) -> String, options: [ContactListAdditionalOption] = [], displayDeviceContacts: Bool = false, confirmation: @escaping (ContactListPeer) -> Signal<Bool, NoError> = { _ in .single(true) }) {
-        self.account = account
+    init(context: AccountContext, autoDismiss: Bool = true, title: @escaping (PresentationStrings) -> String, options: [ContactListAdditionalOption] = [], displayDeviceContacts: Bool = false, confirmation: @escaping (ContactListPeer) -> Signal<Bool, NoError> = { _ in .single(true) }) {
+        self.context = context
         self.autoDismiss = autoDismiss
         self.titleProducer = title
         self.options = options
         self.displayDeviceContacts = displayDeviceContacts
         self.confirmation = confirmation
         
-        self.presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+        self.presentationData = context.sharedContext.currentPresentationData.with { $0 }
         
         super.init(navigationBarPresentationData: NavigationBarPresentationData(presentationData: self.presentationData))
+        
+        self.blocksBackgroundWhenInOverlay = true
         
         self.statusBar.statusBarStyle = self.presentationData.theme.rootController.statusBar.style.style
         
@@ -88,7 +90,7 @@ class ContactSelectionController: ViewController {
             }
         }
         
-        self.presentationDataDisposable = (account.telegramApplicationContext.presentationData
+        self.presentationDataDisposable = (context.sharedContext.presentationData
         |> deliverOnMainQueue).start(next: { [weak self] presentationData in
             if let strongSelf = self {
                 let previousTheme = strongSelf.presentationData.theme
@@ -133,7 +135,7 @@ class ContactSelectionController: ViewController {
     }
     
     override func loadDisplayNode() {
-        self.displayNode = ContactSelectionControllerNode(account: self.account, options: self.options, displayDeviceContacts: self.displayDeviceContacts)
+        self.displayNode = ContactSelectionControllerNode(context: self.context, options: self.options, displayDeviceContacts: self.displayDeviceContacts)
         self._ready.set(self.contactsNode.contactListNode.ready)
         
         self.contactsNode.navigationBar = self.navigationBar
@@ -156,7 +158,7 @@ class ContactSelectionController: ViewController {
         
         self.contactsNode.contactListNode.suppressPermissionWarning = { [weak self] in
             if let strongSelf = self {
-                presentContactsWarningSuppression(account: strongSelf.account, present: { c, a in
+                presentContactsWarningSuppression(context: strongSelf.context, present: { c, a in
                     strongSelf.present(c, in: .window(.root), with: a)
                 })
             }
@@ -198,17 +200,21 @@ class ContactSelectionController: ViewController {
         self.contactsNode.contactListNode.enableUpdates = true
     }
     
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        
+    func viewDidAppear(completion: @escaping () -> Void) {
         if let presentationArguments = self.presentationArguments as? ViewControllerPresentationArguments {
             switch presentationArguments.presentationAnimation {
                 case .modalSheet:
-                    self.contactsNode.animateIn()
+                    self.contactsNode.animateIn(completion: completion)
                 case .none:
                     break
             }
         }
+    }
+    
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        
+        self.viewDidAppear(completion: {})
     }
     
     override func viewDidDisappear(_ animated: Bool) {

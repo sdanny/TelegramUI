@@ -268,14 +268,14 @@ private func dataPrivacyControllerEntries(presentationData: PresentationData, st
     entries.append(.clearPaymentInfo(presentationData.theme, presentationData.strings.Privacy_PaymentsClearInfo, !state.clearingPaymentInfo))
     entries.append(.paymentInfo(presentationData.theme, presentationData.strings.Privacy_PaymentsClearInfoHelp))
     
-   entries.append(.secretChatLinkPreviewsHeader(presentationData.theme, presentationData.strings.Privacy_SecretChatsTitle))
+    entries.append(.secretChatLinkPreviewsHeader(presentationData.theme, presentationData.strings.Privacy_SecretChatsTitle))
     entries.append(.secretChatLinkPreviews(presentationData.theme, presentationData.strings.Privacy_SecretChatsLinkPreviews, secretChatLinkPreviews ?? true))
     entries.append(.secretChatLinkPreviewsInfo(presentationData.theme, presentationData.strings.Privacy_SecretChatsLinkPreviewsHelp))
     
     return entries
 }
 
-public func dataPrivacyController(account: Account) -> ViewController {
+public func dataPrivacyController(context: AccountContext) -> ViewController {
     let statePromise = ValuePromise(DataPrivacyControllerState(), ignoreRepeated: true)
     let stateValue = Atomic(value: DataPrivacyControllerState())
     let updateState: ((DataPrivacyControllerState) -> DataPrivacyControllerState) -> Void = { f in
@@ -292,8 +292,8 @@ public func dataPrivacyController(account: Account) -> ViewController {
     let clearPaymentInfoDisposable = MetaDisposable()
     actionsDisposable.add(clearPaymentInfoDisposable)
     
-    let arguments = DataPrivacyControllerArguments(account: account, clearPaymentInfo: {
-        let presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+    let arguments = DataPrivacyControllerArguments(account: context.account, clearPaymentInfo: {
+        let presentationData = context.sharedContext.currentPresentationData.with { $0 }
         let controller = ActionSheetController(presentationTheme: presentationData.theme)
         let dismissAction: () -> Void = { [weak controller] in
             controller?.dismissAnimated()
@@ -348,14 +348,14 @@ public func dataPrivacyController(account: Account) -> ViewController {
                     info.insert(.shippingInfo)
                 }
                 
-                clearPaymentInfoDisposable.set((clearBotPaymentInfo(network: account.network, info: info)
+                clearPaymentInfoDisposable.set((clearBotPaymentInfo(network: context.account.network, info: info)
                     |> deliverOnMainQueue).start(completed: {
                         updateState { state in
                             var state = state
                             state.clearingPaymentInfo = false
                             return state
                         }
-                        let presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+                        let presentationData = context.sharedContext.currentPresentationData.with { $0 }
                         presentControllerImpl?(OverlayStatusController(theme: presentationData.theme, strings: presentationData.strings, type: .success))
                     }))
             }
@@ -368,7 +368,7 @@ public func dataPrivacyController(account: Account) -> ViewController {
             ])
         presentControllerImpl?(controller)
     }, updateSecretChatLinkPreviews: { value in
-        let _ = ApplicationSpecificNotice.setSecretChatLinkPreviews(postbox: account.postbox, value: value).start()
+        let _ = ApplicationSpecificNotice.setSecretChatLinkPreviews(accountManager: context.sharedContext.accountManager, value: value).start()
     }, deleteContacts: {
         var canBegin = false
         updateState { state in
@@ -378,8 +378,8 @@ public func dataPrivacyController(account: Account) -> ViewController {
             return state
         }
         if canBegin {
-            let presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
-            presentControllerImpl?(standardTextAlertController(theme: AlertControllerTheme(presentationTheme: presentationData.theme), title: nil, text: presentationData.strings.Privacy_ContactsResetConfirmation, actions: [TextAlertAction(type: .destructiveAction, title: presentationData.strings.Common_Delete, action: {
+            let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+            presentControllerImpl?(textAlertController(context: context, title: nil, text: presentationData.strings.Privacy_ContactsResetConfirmation, actions: [TextAlertAction(type: .destructiveAction, title: presentationData.strings.Common_Delete, action: {
                 var begin = false
                 updateState { state in
                     var state = state
@@ -394,29 +394,33 @@ public func dataPrivacyController(account: Account) -> ViewController {
                     return
                 }
                 
-                let _ = updateContactSettingsInteractively(postbox: account.postbox, { settings in
-                    var settings = settings
-                    settings.synchronizeDeviceContacts = false
-                    return settings
-                })
+                let _ = context.account.postbox.transaction({ transaction in
+                    transaction.updatePreferencesEntry(key: PreferencesKeys.contactsSettings, { current in
+                        var settings = current as? ContactsSettings ?? ContactsSettings.defaultSettings
+                        settings.synchronizeContacts = false
+                        return settings
+                    })
+                }).start()
                 
-                actionsDisposable.add(((deleteAllContacts(postbox: account.postbox, network: account.network) |> then(resetSavedContacts(network: account.network)))
+                actionsDisposable.add((deleteAllContacts(account: context.account)
                 |> deliverOnMainQueue).start(completed: {
                     updateState { state in
                         var state = state
                         state.deletingContacts = false
                         return state
                     }
-                    let presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+                    let presentationData = context.sharedContext.currentPresentationData.with { $0 }
                     presentControllerImpl?(OverlayStatusController(theme: presentationData.theme, strings: presentationData.strings, type: .success))
                 }))
             }), TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_Cancel, action: {})]))
         }
     }, updateSyncContacts: { value in
-        let _ = updateContactSettingsInteractively(postbox: account.postbox, { settings in
-            var settings = settings
-            settings.synchronizeDeviceContacts = value
-            return settings
+        let _ = context.account.postbox.transaction({ transaction in
+            transaction.updatePreferencesEntry(key: PreferencesKeys.contactsSettings, { current in
+                var settings = current as? ContactsSettings ?? ContactsSettings.defaultSettings
+                settings.synchronizeContacts = value
+                return settings
+            })
         }).start()
     }, updateSuggestFrequentContacts: { value in
         let apply: () -> Void = {
@@ -425,18 +429,18 @@ public func dataPrivacyController(account: Account) -> ViewController {
                 state.updatedSuggestFrequentContacts = value
                 return state
             }
-            let _ = updateRecentPeersEnabled(postbox: account.postbox, network: account.network, enabled: value).start()
+            let _ = updateRecentPeersEnabled(postbox: context.account.postbox, network: context.account.network, enabled: value).start()
         }
         if !value {
-            let presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
-            presentControllerImpl?(standardTextAlertController(theme: AlertControllerTheme(presentationTheme: presentationData.theme), title: nil, text: presentationData.strings.Privacy_TopPeersWarning, actions: [TextAlertAction(type: .genericAction, title: presentationData.strings.Common_Cancel, action: {}), TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {
+            let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+            presentControllerImpl?(textAlertController(context: context, title: nil, text: presentationData.strings.Privacy_TopPeersWarning, actions: [TextAlertAction(type: .genericAction, title: presentationData.strings.Common_Cancel, action: {}), TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {
                 apply()
             })]))
         } else {
             apply()
         }
     }, deleteCloudDrafts: {
-        let presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+        let presentationData = context.sharedContext.currentPresentationData.with { $0 }
         let controller = ActionSheetController(presentationTheme: presentationData.theme)
         let dismissAction: () -> Void = { [weak controller] in
             controller?.dismissAnimated()
@@ -454,14 +458,14 @@ public func dataPrivacyController(account: Account) -> ViewController {
                         return state
                     }
                     if clear {
-                        clearPaymentInfoDisposable.set((clearCloudDraftsInteractively(postbox: account.postbox, network: account.network, accountPeerId: account.peerId)
+                        clearPaymentInfoDisposable.set((clearCloudDraftsInteractively(postbox: context.account.postbox, network: context.account.network, accountPeerId: context.account.peerId)
                             |> deliverOnMainQueue).start(completed: {
                                 updateState { state in
                                     var state = state
                                     state.deletingCloudDrafts = false
                                     return state
                                 }
-                                let presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+                                let presentationData = context.sharedContext.currentPresentationData.with { $0 }
                                 presentControllerImpl?(OverlayStatusController(theme: presentationData.theme, strings: presentationData.strings, type: .success))
                             }))
                     }
@@ -475,43 +479,44 @@ public func dataPrivacyController(account: Account) -> ViewController {
     
     let previousState = Atomic<DataPrivacyControllerState?>(value: nil)
     
-    let preferencesKey = PostboxViewKey.preferences(keys: Set([ApplicationSpecificPreferencesKeys.contactSynchronizationSettings]))
+    actionsDisposable.add(managedUpdatedRecentPeers(accountPeerId: context.account.peerId, postbox: context.account.postbox, network: context.account.network).start())
     
-    actionsDisposable.add(managedUpdatedRecentPeers(accountPeerId: account.peerId, postbox: account.postbox, network: account.network).start())
-    
-    let signal = combineLatest((account.applicationContext as! TelegramApplicationContext).presentationData, statePromise.get() |> deliverOnMainQueue, account.postbox.combinedView(keys: [.noticeEntry(ApplicationSpecificNotice.secretChatLinkPreviewsKey()), preferencesKey]), recentPeers(account: account))
-        |> map { presentationData, state, combined, recentPeers -> (ItemListControllerState, (ItemListNodeState<PrivacyAndSecurityEntry>, PrivacyAndSecurityEntry.ItemGenerationArguments)) in
-            let secretChatLinkPreviews = (combined.views[.noticeEntry(ApplicationSpecificNotice.secretChatLinkPreviewsKey())] as? NoticeEntryView)?.value.flatMap({ ApplicationSpecificNotice.getSecretChatLinkPreviews($0) })
-            
-            let synchronizeDeviceContacts: Bool = ((combined.views[preferencesKey] as? PreferencesView)?.values[ApplicationSpecificPreferencesKeys.contactSynchronizationSettings] as? ContactSynchronizationSettings)?.synchronizeDeviceContacts ?? true
-            
-            let suggestRecentPeers: Bool
-            if let updatedSuggestFrequentContacts = state.updatedSuggestFrequentContacts {
-                suggestRecentPeers = updatedSuggestFrequentContacts
-            } else {
-                switch recentPeers {
+    let signal = combineLatest(queue: .mainQueue(), context.sharedContext.presentationData, statePromise.get(), context.sharedContext.accountManager.noticeEntry(key: ApplicationSpecificNotice.secretChatLinkPreviewsKey()), context.sharedContext.accountManager.sharedData(keys: [ApplicationSpecificSharedDataKeys.contactSynchronizationSettings]), context.account.postbox.preferencesView(keys: [PreferencesKeys.contactsSettings]), recentPeers(account: context.account))
+    |> map { presentationData, state, noticeView, sharedData, preferences, recentPeers -> (ItemListControllerState, (ItemListNodeState<PrivacyAndSecurityEntry>, PrivacyAndSecurityEntry.ItemGenerationArguments)) in
+        let secretChatLinkPreviews = noticeView.value.flatMap({ ApplicationSpecificNotice.getSecretChatLinkPreviews($0) })
+        
+        let settings: ContactsSettings = preferences.values[PreferencesKeys.contactsSettings] as? ContactsSettings ?? ContactsSettings.defaultSettings
+        
+        let synchronizeDeviceContacts: Bool = settings.synchronizeContacts
+        
+        let suggestRecentPeers: Bool
+        if let updatedSuggestFrequentContacts = state.updatedSuggestFrequentContacts {
+            suggestRecentPeers = updatedSuggestFrequentContacts
+        } else {
+            switch recentPeers {
                 case .peers:
                     suggestRecentPeers = true
                 case .disabled:
                     suggestRecentPeers = false
-                }
             }
-            
-            let rightNavigationButton: ItemListNavigationButton? = nil
-            
-            let controllerState = ItemListControllerState(theme: presentationData.theme, title: .text(presentationData.strings.PrivateDataSettings_Title), leftNavigationButton: nil, rightNavigationButton: rightNavigationButton, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back), animateChanges: false)
-            
-            let previousStateValue = previousState.swap(state)
-            let animateChanges = false
-            
-            let listState = ItemListNodeState(entries: dataPrivacyControllerEntries(presentationData: presentationData, state: state, secretChatLinkPreviews: secretChatLinkPreviews, synchronizeDeviceContacts: synchronizeDeviceContacts, frequentContacts: suggestRecentPeers), style: .blocks, animateChanges: animateChanges)
-            
-            return (controllerState, (listState, arguments))
-        } |> afterDisposed {
-            actionsDisposable.dispose()
+        }
+        
+        let rightNavigationButton: ItemListNavigationButton? = nil
+        
+        let controllerState = ItemListControllerState(theme: presentationData.theme, title: .text(presentationData.strings.PrivateDataSettings_Title), leftNavigationButton: nil, rightNavigationButton: rightNavigationButton, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back), animateChanges: false)
+        
+        let previousStateValue = previousState.swap(state)
+        let animateChanges = false
+        
+        let listState = ItemListNodeState(entries: dataPrivacyControllerEntries(presentationData: presentationData, state: state, secretChatLinkPreviews: secretChatLinkPreviews, synchronizeDeviceContacts: synchronizeDeviceContacts, frequentContacts: suggestRecentPeers), style: .blocks, animateChanges: animateChanges)
+        
+        return (controllerState, (listState, arguments))
+    }
+    |> afterDisposed {
+        actionsDisposable.dispose()
     }
     
-    let controller = ItemListController(account: account, state: signal)
+    let controller = ItemListController(context: context, state: signal)
     presentControllerImpl = { [weak controller] c in
         controller?.present(c, in: .window(.root), with: ViewControllerPresentationArguments(presentationAnimation: .modalSheet))
     }

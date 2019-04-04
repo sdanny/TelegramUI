@@ -13,9 +13,10 @@ final class AuthorizationSequenceSplashController: ViewController {
         return self.displayNode as! AuthorizationSequenceSplashControllerNode
     }
     
+    private let accountManager: AccountManager
     private let postbox: Postbox
     private let network: Network
-    private let theme: AuthorizationTheme
+    private let theme: PresentationTheme
     
     private let controller: RMIntroViewController
     
@@ -25,7 +26,8 @@ final class AuthorizationSequenceSplashController: ViewController {
     private let suggestedLocalization = Promise<SuggestedLocalizationInfo?>()
     private let activateLocalizationDisposable = MetaDisposable()
     
-    init(postbox: Postbox, network: Network, theme: AuthorizationTheme) {
+    init(accountManager: AccountManager, postbox: Postbox, network: Network, theme: PresentationTheme) {
+        self.accountManager = accountManager
         self.postbox = postbox
         self.network = network
         self.theme = theme
@@ -65,13 +67,13 @@ final class AuthorizationSequenceSplashController: ViewController {
             })
         })
         
-        self.controller = RMIntroViewController(backroundColor: theme.backgroundColor, primaryColor: theme.primaryColor, buttonColor: theme.startButtonColor, accentColor: theme.accentColor, regularDotColor: theme.dotColor, highlightedDotColor: theme.primaryColor, suggestedLocalizationSignal: localizationSignal)
+        self.controller = RMIntroViewController(backgroundColor: theme.list.plainBackgroundColor, primaryColor: theme.list.itemPrimaryTextColor, buttonColor: theme.auth.introStartButton, accentColor: theme.list.itemAccentColor, regularDotColor: theme.auth.introDotColor, highlightedDotColor: theme.list.itemPrimaryTextColor, suggestedLocalizationSignal: localizationSignal)
         
         super.init(navigationBarPresentationData: nil)
         
         self.supportedOrientations = ViewControllerSupportedOrientations(regularSize: .all, compactSize: .portrait)
         
-        self.statusBar.statusBarStyle = theme.statusBarStyle
+        self.statusBar.statusBarStyle = theme.rootController.statusBar.style.style
         
         self.controller.startMessaging = { [weak self] in
             self?.activateLocalization("en")
@@ -146,9 +148,9 @@ final class AuthorizationSequenceSplashController: ViewController {
         }
     }
     
-    func activateLocalization(_ code: String = "en") {
-        let currentCode = self.postbox.transaction { transaction -> String in
-            if let current = transaction.getPreferencesEntry(key: PreferencesKeys.localizationSettings) as? LocalizationSettings {
+    private func activateLocalization(_ code: String) {
+        let currentCode = self.accountManager.transaction { transaction -> String in
+            if let current = transaction.getSharedData(SharedDataKeys.localizationSettings) as? LocalizationSettings {
                 return current.primaryComponent.languageCode
             } else {
                 return "en"
@@ -176,12 +178,13 @@ final class AuthorizationSequenceSplashController: ViewController {
             }
             
             strongSelf.controller.isEnabled = false
+            let accountManager = strongSelf.accountManager
             let postbox = strongSelf.postbox
             
-            strongSelf.activateLocalizationDisposable.set(downloadAndApplyLocalization(postbox: postbox, network: strongSelf.network, languageCode: code).start(completed: {
-                let _ = (postbox.transaction { transaction -> PresentationStrings? in
+            strongSelf.activateLocalizationDisposable.set(downloadAndApplyLocalization(accountManager: accountManager, postbox: postbox, network: strongSelf.network, languageCode: code).start(completed: {
+                let _ = (accountManager.transaction { transaction -> PresentationStrings? in
                     let localizationSettings: LocalizationSettings?
-                    if let current = transaction.getPreferencesEntry(key: PreferencesKeys.localizationSettings) as? LocalizationSettings {
+                    if let current = transaction.getSharedData(SharedDataKeys.localizationSettings) as? LocalizationSettings {
                         localizationSettings = current
                     } else {
                         localizationSettings = nil

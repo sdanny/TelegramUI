@@ -156,11 +156,11 @@ private enum StorageUsageEntry: ItemListNodeEntry {
             case let .collecting(theme, text):
                 return CalculatingCacheSizeItem(theme: theme, title: text, sectionId: self.section, style: .blocks)
             case let .immutableSize(theme, title, value):
-                return ItemListDisclosureItem(theme: theme, icon: nil, title: title, kind: .disabled, titleColor: .primary, label: value, labelStyle: .text, sectionId: self.section, style: .blocks, disclosureStyle: .none, action: nil)
+                return ItemListDisclosureItem(theme: theme, icon: nil, title: title, enabled: false, titleColor: .primary, label: value, labelStyle: .text, sectionId: self.section, style: .blocks, disclosureStyle: .none, action: nil)
             case let .peersHeader(theme, text):
                 return ItemListSectionHeaderItem(theme: theme, text: text, sectionId: self.section)
             case let .clearAll(theme, text, value, enabled):
-                return ItemListDisclosureItem(theme: theme, icon: nil, title: text, kind: enabled ? .generic : .disabled, label: value, sectionId: self.section, style: .blocks, disclosureStyle: .arrow, action: {
+                return ItemListDisclosureItem(theme: theme, icon: nil, title: text, enabled: enabled, label: value, sectionId: self.section, style: .blocks, disclosureStyle: .arrow, action: {
                     arguments.openClearAll()
                 })
             case let .peer(_, theme, strings, dateTimeFormat, nameDisplayOrder, peer, chatPeer, value):
@@ -193,7 +193,7 @@ private func storageUsageControllerEntries(presentationData: PresentationData, c
     var addedHeader = false
     
     if let cacheStats = cacheStats, case let .result(stats) = cacheStats {
-        entries.append(.immutableSize(presentationData.theme, presentationData.strings.Cache_ServiceFiles, dataSizeString(stats.immutableSize)))
+        entries.append(.immutableSize(presentationData.theme, presentationData.strings.Cache_ServiceFiles, dataSizeString(stats.immutableSize, decimalSeparator: presentationData.dateTimeFormat.decimalSeparator)))
         
         var peerSizes: Int64 = 0
         var statsByPeerId: [(PeerId, Int64)] = []
@@ -220,7 +220,7 @@ private func storageUsageControllerEntries(presentationData: PresentationData, c
         
         let totalSize = Int64(peerSizes + stats.otherSize + stats.cacheSize + stats.tempSize)
         
-        entries.append(.clearAll(presentationData.theme, presentationData.strings.Cache_ClearCache, totalSize > 0 ? dataSizeString(totalSize) : presentationData.strings.Cache_ClearEmpty, totalSize > 0))
+        entries.append(.clearAll(presentationData.theme, presentationData.strings.Cache_ClearCache, totalSize > 0 ? dataSizeString(totalSize, decimalSeparator: presentationData.dateTimeFormat.decimalSeparator) : presentationData.strings.Cache_ClearEmpty, totalSize > 0))
         
         var index: Int32 = 0
         for (peerId, size) in statsByPeerId.sorted(by: { $0.1 > $1.1 }) {
@@ -236,7 +236,7 @@ private func storageUsageControllerEntries(presentationData: PresentationData, c
                         chatPeer = mainPeer
                         mainPeer = associatedPeer
                     }
-                    entries.append(.peer(index, presentationData.theme, presentationData.strings, presentationData.dateTimeFormat, presentationData.nameDisplayOrder, mainPeer, chatPeer, dataSizeString(size)))
+                    entries.append(.peer(index, presentationData.theme, presentationData.strings, presentationData.dateTimeFormat, presentationData.nameDisplayOrder, mainPeer, chatPeer, dataSizeString(size, decimalSeparator: presentationData.dateTimeFormat.decimalSeparator)))
                     index += 1
                 }
             }
@@ -261,25 +261,25 @@ private func stringForCategory(strings: PresentationStrings, category: PeerCache
     }
 }
 
-func storageUsageController(account: Account, isModal: Bool = false) -> ViewController {
+func storageUsageController(context: AccountContext, isModal: Bool = false) -> ViewController {
     let cacheSettingsPromise = Promise<CacheStorageSettings>()
-    cacheSettingsPromise.set(account.postbox.preferencesView(keys: [PreferencesKeys.cacheStorageSettings])
-        |> map { view -> CacheStorageSettings in
-            let cacheSettings: CacheStorageSettings
-            if let value = view.values[PreferencesKeys.cacheStorageSettings] as? CacheStorageSettings {
-                cacheSettings = value
-            } else {
-                cacheSettings = CacheStorageSettings.defaultSettings
-            }
-            
-            return cacheSettings
-        })
+    cacheSettingsPromise.set(context.sharedContext.accountManager.sharedData(keys: [SharedDataKeys.cacheStorageSettings])
+    |> map { sharedData -> CacheStorageSettings in
+        let cacheSettings: CacheStorageSettings
+        if let value = sharedData.entries[SharedDataKeys.cacheStorageSettings] as? CacheStorageSettings {
+            cacheSettings = value
+        } else {
+            cacheSettings = CacheStorageSettings.defaultSettings
+        }
+        
+        return cacheSettings
+    })
     
     var presentControllerImpl: ((ViewController) -> Void)?
     
     let statsPromise = Promise<CacheUsageStatsResult?>()
     let resetStats: () -> Void = {
-        let containerPath = account.telegramApplicationContext.applicationBindings.containerPath
+        let containerPath = context.sharedContext.applicationBindings.containerPath
         let additionalPaths: [String] = [
             NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true)[0],
             containerPath + "/Documents/files",
@@ -289,7 +289,7 @@ func storageUsageController(account: Account, isModal: Bool = false) -> ViewCont
             containerPath + "/Documents/tempcache_v1/store",
         ]
         statsPromise.set(.single(nil)
-        |> then(collectCacheUsageStats(account: account, additionalCachePaths: additionalPaths, logFilesPath: account.telegramApplicationContext.applicationBindings.containerPath + "/telegram-data/logs")
+        |> then(collectCacheUsageStats(account: context.account, additionalCachePaths: additionalPaths, logFilesPath: context.sharedContext.applicationBindings.containerPath + "/telegram-data/logs")
         |> map(Optional.init)))
     }
     resetStats()
@@ -299,14 +299,14 @@ func storageUsageController(account: Account, isModal: Bool = false) -> ViewCont
     let clearDisposable = MetaDisposable()
     actionDisposables.add(clearDisposable)
     
-    let arguments = StorageUsageControllerArguments(account: account, updateKeepMedia: {
-        let presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+    let arguments = StorageUsageControllerArguments(account: context.account, updateKeepMedia: {
+        let presentationData = context.sharedContext.currentPresentationData.with { $0 }
         let controller = ActionSheetController(presentationTheme: presentationData.theme)
         let dismissAction: () -> Void = { [weak controller] in
             controller?.dismissAnimated()
         }
         let timeoutAction: (Int32) -> Void = { timeout in
-            let _ = updateCacheStorageSettingsInteractively(postbox: account.postbox, { current in
+            let _ = updateCacheStorageSettingsInteractively(accountManager: context.sharedContext.accountManager, { current in
                 return current.withUpdatedDefaultCacheStorageTimeout(timeout)
             }).start()
         }
@@ -335,7 +335,7 @@ func storageUsageController(account: Account, isModal: Bool = false) -> ViewCont
         |> take(1)
         |> deliverOnMainQueue).start(next: { [weak statsPromise] result in
             if let result = result, case let .result(stats) = result {
-                let presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+                let presentationData = context.sharedContext.currentPresentationData.with { $0 }
                 let controller = ActionSheetController(presentationTheme: presentationData.theme)
                 let dismissAction: () -> Void = { [weak controller] in
                     controller?.dismissAnimated()
@@ -374,7 +374,7 @@ func storageUsageController(account: Account, isModal: Bool = false) -> ViewCont
                         if filteredSize == 0 {
                             title = presentationData.strings.Cache_ClearNone
                         } else {
-                            title = presentationData.strings.Cache_Clear("\(dataSizeString(filteredSize))").0
+                            title = presentationData.strings.Cache_Clear("\(dataSizeString(filteredSize, decimalSeparator: presentationData.dateTimeFormat.decimalSeparator))").0
                         }
                         
                         if let item = item as? ActionSheetButtonItem {
@@ -411,7 +411,7 @@ func storageUsageController(account: Account, isModal: Bool = false) -> ViewCont
                         let categorySize: Int64 = size
                         totalSize += categorySize
                         let index = itemIndex
-                        items.append(ActionSheetCheckboxItem(title: stringForCategory(strings: presentationData.strings, category: categoryId), label: dataSizeString(categorySize), value: true, action: { value in
+                        items.append(ActionSheetCheckboxItem(title: stringForCategory(strings: presentationData.strings, category: categoryId), label: dataSizeString(categorySize, decimalSeparator: presentationData.dateTimeFormat.decimalSeparator), value: true, action: { value in
                             toggleCheck(categoryId, index)
                         }))
                         itemIndex += 1
@@ -421,14 +421,14 @@ func storageUsageController(account: Account, isModal: Bool = false) -> ViewCont
                 if otherSize.1 != 0 {
                     totalSize += otherSize.1
                     let index = itemIndex
-                    items.append(ActionSheetCheckboxItem(title: presentationData.strings.Localization_LanguageOther, label: dataSizeString(otherSize.1), value: true, action: { value in
+                    items.append(ActionSheetCheckboxItem(title: presentationData.strings.Localization_LanguageOther, label: dataSizeString(otherSize.1, decimalSeparator: presentationData.dateTimeFormat.decimalSeparator), value: true, action: { value in
                         toggleCheck(nil, index)
                     }))
                     itemIndex += 1
                 }
                 
                 if !items.isEmpty {
-                    items.append(ActionSheetButtonItem(title: presentationData.strings.Cache_Clear("\(dataSizeString(totalSize))").0, action: {
+                    items.append(ActionSheetButtonItem(title: presentationData.strings.Cache_Clear("\(dataSizeString(totalSize, decimalSeparator: presentationData.dateTimeFormat.decimalSeparator))").0, action: {
                         if let statsPromise = statsPromise {
                             let clearCategories = sizeIndex.keys.filter({ sizeIndex[$0]!.0 })
                             
@@ -464,7 +464,7 @@ func storageUsageController(account: Account, isModal: Bool = false) -> ViewCont
                             var updatedTempPaths = stats.tempPaths
                             var updatedTempSize = stats.tempSize
                             
-                            var signal: Signal<Void, NoError> = clearCachedMediaResources(account: account, mediaResourceIds: clearResourceIds)
+                            var signal: Signal<Void, NoError> = clearCachedMediaResources(account: context.account, mediaResourceIds: clearResourceIds)
                             if otherSize.0 {
                                 let removeTempFiles: Signal<Void, NoError> = Signal { subscriber in
                                     let fileManager = FileManager.default
@@ -476,7 +476,7 @@ func storageUsageController(account: Account, isModal: Bool = false) -> ViewCont
                                     return EmptyDisposable
                                 } |> runOn(Queue.concurrentDefaultQueue())
                                 signal = signal
-                                |> then(account.postbox.mediaBox.removeOtherCachedResources(paths: stats.otherPaths))
+                                |> then(context.account.postbox.mediaBox.removeOtherCachedResources(paths: stats.otherPaths))
                                 |> then(removeTempFiles)
                             }
                             
@@ -491,7 +491,7 @@ func storageUsageController(account: Account, isModal: Bool = false) -> ViewCont
                             let resultStats = CacheUsageStats(media: media, mediaResourceIds: stats.mediaResourceIds, peers: stats.peers, otherSize: updatedOtherSize, otherPaths: updatedOtherPaths, cacheSize: updatedCacheSize, tempPaths: updatedTempPaths, tempSize: updatedTempSize, immutableSize: stats.immutableSize)
                             
                             var cancelImpl: (() -> Void)?
-                            let presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+                            let presentationData = context.sharedContext.currentPresentationData.with { $0 }
                             let progressSignal = Signal<Never, NoError> { subscriber in
                                 let controller = OverlayStatusController(theme: presentationData.theme, strings: presentationData.strings,  type: .loading(cancelled: {
                                     cancelImpl?()
@@ -554,7 +554,7 @@ func storageUsageController(account: Account, isModal: Bool = false) -> ViewCont
                         }
                     }
                     
-                    let presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+                    let presentationData = context.sharedContext.currentPresentationData.with { $0 }
                     let controller = ActionSheetController(presentationTheme: presentationData.theme)
                     let dismissAction: () -> Void = { [weak controller] in
                         controller?.dismissAnimated()
@@ -572,7 +572,7 @@ func storageUsageController(account: Account, isModal: Bool = false) -> ViewCont
                             if filteredSize == 0 {
                                 title = presentationData.strings.Cache_ClearNone
                             } else {
-                                title = presentationData.strings.Cache_Clear("\(dataSizeString(filteredSize))").0
+                                title = presentationData.strings.Cache_Clear("\(dataSizeString(filteredSize, decimalSeparator: presentationData.dateTimeFormat.decimalSeparator))").0
                             }
                             
                             if let item = item as? ActionSheetButtonItem {
@@ -610,7 +610,7 @@ func storageUsageController(account: Account, isModal: Bool = false) -> ViewCont
                             totalSize += categorySize
                             if categorySize > 1024 {
                                 let index = itemIndex
-                                items.append(ActionSheetCheckboxItem(title: stringForCategory(strings: presentationData.strings, category: categoryId), label: dataSizeString(categorySize), value: true, action: { value in
+                                items.append(ActionSheetCheckboxItem(title: stringForCategory(strings: presentationData.strings, category: categoryId), label: dataSizeString(categorySize, decimalSeparator: presentationData.dateTimeFormat.decimalSeparator), value: true, action: { value in
                                     toggleCheck(categoryId, index)
                                 }))
                                 itemIndex += 1
@@ -619,7 +619,7 @@ func storageUsageController(account: Account, isModal: Bool = false) -> ViewCont
                     }
                     
                     if !items.isEmpty {
-                        items.append(ActionSheetButtonItem(title: presentationData.strings.Cache_Clear("\(dataSizeString(totalSize))").0, action: {
+                        items.append(ActionSheetButtonItem(title: presentationData.strings.Cache_Clear("\(dataSizeString(totalSize, decimalSeparator: presentationData.dateTimeFormat.decimalSeparator))").0, action: {
                             if let statsPromise = statsPromise {
                                 let clearCategories = sizeIndex.keys.filter({ sizeIndex[$0]!.0 })
                                 var clearMediaIds = Set<MediaId>()
@@ -661,12 +661,12 @@ func storageUsageController(account: Account, isModal: Bool = false) -> ViewCont
                                     }
                                 }
                                 
-                                var signal = clearCachedMediaResources(account: account, mediaResourceIds: clearResourceIds)
+                                var signal = clearCachedMediaResources(account: context.account, mediaResourceIds: clearResourceIds)
                                 
                                 let resultStats = CacheUsageStats(media: media, mediaResourceIds: stats.mediaResourceIds, peers: stats.peers, otherSize: stats.otherSize, otherPaths: stats.otherPaths, cacheSize: stats.cacheSize, tempPaths: stats.tempPaths, tempSize: stats.tempSize, immutableSize: stats.immutableSize)
                                 
                                 var cancelImpl: (() -> Void)?
-                                let presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+                                let presentationData = context.sharedContext.currentPresentationData.with { $0 }
                                 let progressSignal = Signal<Never, NoError> { subscriber in
                                     let controller = OverlayStatusController(theme: presentationData.theme, strings: presentationData.strings,  type: .loading(cancelled: {
                                         cancelImpl?()
@@ -714,7 +714,7 @@ func storageUsageController(account: Account, isModal: Bool = false) -> ViewCont
     
     var dismissImpl: (() -> Void)?
     
-    let signal = combineLatest((account.applicationContext as! TelegramApplicationContext).presentationData, cacheSettingsPromise.get(), statsPromise.get()) |> deliverOnMainQueue
+    let signal = combineLatest(context.sharedContext.presentationData, cacheSettingsPromise.get(), statsPromise.get()) |> deliverOnMainQueue
         |> map { presentationData, cacheSettings, cacheStats -> (ItemListControllerState, (ItemListNodeState<StorageUsageEntry>, StorageUsageEntry.ItemGenerationArguments)) in
             let leftNavigationButton = isModal ? ItemListNavigationButton(content: .text(presentationData.strings.Common_Cancel), style: .regular, enabled: true, action: {
                 dismissImpl?()
@@ -728,7 +728,7 @@ func storageUsageController(account: Account, isModal: Bool = false) -> ViewCont
             actionDisposables.dispose()
         }
     
-    let controller = ItemListController(account: account, state: signal)
+    let controller = ItemListController(context: context, state: signal)
     presentControllerImpl = { [weak controller] c in
         controller?.present(c, in: .window(.root), with: ViewControllerPresentationArguments(presentationAnimation: .modalSheet))
     }

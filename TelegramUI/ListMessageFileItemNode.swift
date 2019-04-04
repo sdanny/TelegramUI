@@ -167,7 +167,7 @@ final class ListMessageFileItemNode: ListMessageNode {
     private let progressNode: RadialProgressNode
     private var playbackOverlayNode: ListMessagePlaybackOverlayNode?
     
-    private var account: Account?
+    private var context: AccountContext?
     private (set) var message: Message?
     
     private var appliedItem: ListMessageItem?
@@ -345,7 +345,7 @@ final class ListMessageFileItemNode: ListMessageNode {
                             if let performer = performer {
                                 descriptionString = performer
                             } else if let size = file.size {
-                                descriptionString = dataSizeString(size)
+                                descriptionString = dataSizeString(size, decimalSeparator: item.dateTimeFormat.decimalSeparator)
                             } else {
                                 descriptionString = ""
                             }
@@ -379,7 +379,7 @@ final class ListMessageFileItemNode: ListMessageNode {
                         
                         let descriptionString: String
                         if let size = file.size {
-                            descriptionString = "\(dataSizeString(size)) • \(dateString)"
+                            descriptionString = "\(dataSizeString(size, decimalSeparator: item.dateTimeFormat.decimalSeparator)) • \(dateString)"
                         } else {
                             descriptionString = "\(dateString)"
                         }
@@ -413,18 +413,18 @@ final class ListMessageFileItemNode: ListMessageNode {
             
             if let selectedMedia = selectedMedia {
                 if mediaUpdated {
-                    let account = item.account
+                    let context = item.context
                     updatedFetchControls = FetchControls(fetch: { [weak self] in
                         if let strongSelf = self {
-                            strongSelf.fetchDisposable.set(messageMediaFileInteractiveFetched(account: account, message: message, file: selectedMedia, userInitiated: true).start())
+                            strongSelf.fetchDisposable.set(messageMediaFileInteractiveFetched(context: context, message: message, file: selectedMedia, userInitiated: true).start())
                         }
                     }, cancel: {
-                        messageMediaFileCancelInteractiveFetch(account: account, messageId: message.id, file: selectedMedia)
+                        messageMediaFileCancelInteractiveFetch(context: context, messageId: message.id, file: selectedMedia)
                     })
                 }
                 
                 if statusUpdated {
-                    updatedStatusSignal = messageFileMediaResourceStatus(account: item.account, file: selectedMedia, message: message, isRecentActions: false)
+                    updatedStatusSignal = messageFileMediaResourceStatus(context: item.context, file: selectedMedia, message: message, isRecentActions: false)
                     
                     if isAudio {
                         if let currentUpdatedStatusSignal = updatedStatusSignal {
@@ -468,9 +468,9 @@ final class ListMessageFileItemNode: ListMessageNode {
                 if let iconImage = iconImage {
                     switch iconImage {
                         case let .imageRepresentation(file, representation):
-                            updateIconImageSignal = chatWebpageSnippetFile(account: item.account, fileReference: .message(message: MessageReference(message), media: file), representation: representation)
+                            updateIconImageSignal = chatWebpageSnippetFile(account: item.context.account, fileReference: .message(message: MessageReference(message), media: file), representation: representation)
                         case let .albumArt(file, albumArt):
-                            updateIconImageSignal = playerAlbumArt(postbox: item.account.postbox, fileReference: .message(message: MessageReference(message), media: file), albumArt: albumArt, thumbnail: true)
+                            updateIconImageSignal = playerAlbumArt(postbox: item.context.account.postbox, fileReference: .message(message: MessageReference(message), media: file), albumArt: albumArt, thumbnail: true)
                         
                     }
                 } else {
@@ -496,7 +496,7 @@ final class ListMessageFileItemNode: ListMessageNode {
                     
                     strongSelf.currentMedia = selectedMedia
                     strongSelf.message = message
-                    strongSelf.account = item.account
+                    strongSelf.context = item.context
                     strongSelf.appliedItem = item
                     strongSelf.layoutParams = params
                     strongSelf.contentSizeValue = nodeLayout.contentSize
@@ -730,11 +730,11 @@ final class ListMessageFileItemNode: ListMessageNode {
         }
     }
     
-    override func transitionNode(id: MessageId, media: Media) -> (ASDisplayNode, () -> UIView?)? {
+    override func transitionNode(id: MessageId, media: Media) -> (ASDisplayNode, () -> (UIView?, UIView?))? {
         if let item = self.item, item.message.id == id, self.iconImageNode.supernode != nil {
             let iconImageNode = self.iconImageNode
             return (self.iconImageNode, { [weak iconImageNode] in
-                return iconImageNode?.view.snapshotContentTree(unhide: true)
+                return (iconImageNode?.view.snapshotContentTree(unhide: true), nil)
             })
         }
         return nil
@@ -768,7 +768,7 @@ final class ListMessageFileItemNode: ListMessageNode {
                     switch fetchStatus {
                         case let .Fetching(_, progress):
                             if let file = self.currentMedia as? TelegramMediaFile, let size = file.size {
-                                downloadingString = "\(dataSizeString(Int(Float(size) * progress), forceDecimal: true)) / \(dataSizeString(size, forceDecimal: true))"
+                                downloadingString = "\(dataSizeString(Int(Float(size) * progress), forceDecimal: true, decimalSeparator: item.dateTimeFormat.decimalSeparator)) / \(dataSizeString(size, forceDecimal: true, decimalSeparator: item.dateTimeFormat.decimalSeparator))"
                             }
                             descriptionOffset = 14.0
                         case .Remote:
@@ -858,8 +858,8 @@ final class ListMessageFileItemNode: ListMessageNode {
                             }
                         }
                 case .playbackStatus:
-                    if let account = self.account, let applicationContext = account.applicationContext as? TelegramApplicationContext {
-                        applicationContext.mediaManager?.playlistControl(.playback(.togglePlayPause))
+                    if let context = self.context {
+                        context.sharedContext.mediaManager.playlistControl(.playback(.togglePlayPause))
                     }
             }
         }

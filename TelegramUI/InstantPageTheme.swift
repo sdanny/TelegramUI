@@ -274,25 +274,22 @@ private func fontSizeMultiplierForVariant(_ variant: InstantPagePresentationFont
     }
 }
 
-func instantPageThemeTypeForSettingsAndTime(presentationTheme: PresentationTheme, settings: InstantPagePresentationSettings, time: Date?) -> InstantPageThemeType {
+func instantPageThemeTypeForSettingsAndTime(themeSettings: PresentationThemeSettings?, settings: InstantPagePresentationSettings, time: Date?) -> InstantPageThemeType {
     if settings.autoNightMode {
         switch settings.themeType {
             case .light, .sepia, .gray:
                 var useDarkTheme = false
-                /*switch presentationTheme.name {
-                    case let .builtin(name):
-                        switch name {
-                            case .nightAccent, .nightGrayscale:
-                                useDarkTheme = true
-                            default:
-                                break
-                        }
-                    default:
-                        break
-                }*/
-                if let time = time {
-                    let calendar = Calendar.current
-                    let hour = calendar.component(.hour, from: time)
+                
+                var fallback = true
+                if let themeSettings = themeSettings {
+                    if case .none = themeSettings.automaticThemeSwitchSetting.trigger {
+                    } else {
+                        fallback = false
+                        useDarkTheme = automaticThemeShouldSwitchNow(themeSettings.automaticThemeSwitchSetting, currentTheme: themeSettings.theme)
+                    }
+                }
+                if fallback, let time = time {
+                    let hour = Calendar.current.component(.hour, from: time)
                     if hour <= 8 || hour >= 22 {
                         useDarkTheme = true
                     }
@@ -323,7 +320,7 @@ func instantPageThemeForType(_ type: InstantPageThemeType, settings: InstantPage
 
 extension ActionSheetControllerTheme {
     convenience init(instantPageTheme: InstantPageTheme) {
-        self.init(dimColor: UIColor(white: 0.0, alpha: 0.4), backgroundType: instantPageTheme.type != .dark ? .light : .dark, itemBackgroundColor: instantPageTheme.overlayPanelColor, itemHighlightedBackgroundColor: instantPageTheme.panelHighlightedBackgroundColor, standardActionTextColor: instantPageTheme.panelAccentColor, destructiveActionTextColor: instantPageTheme.panelAccentColor, disabledActionTextColor: instantPageTheme.panelAccentColor, primaryTextColor: instantPageTheme.textCategories.paragraph.color, secondaryTextColor: instantPageTheme.textCategories.caption.color, controlAccentColor: instantPageTheme.panelAccentColor)
+        self.init(dimColor: UIColor(white: 0.0, alpha: 0.4), backgroundType: instantPageTheme.type != .dark ? .light : .dark, itemBackgroundColor: instantPageTheme.overlayPanelColor, itemHighlightedBackgroundColor: instantPageTheme.panelHighlightedBackgroundColor, standardActionTextColor: instantPageTheme.panelAccentColor, destructiveActionTextColor: instantPageTheme.panelAccentColor, disabledActionTextColor: instantPageTheme.panelAccentColor, primaryTextColor: instantPageTheme.textCategories.paragraph.color, secondaryTextColor: instantPageTheme.textCategories.caption.color, controlAccentColor: instantPageTheme.panelAccentColor, controlColor: instantPageTheme.tableBorderColor, switchFrameColor: .white, switchContentColor: .white, switchHandleColor: .white)
     }
 }
 

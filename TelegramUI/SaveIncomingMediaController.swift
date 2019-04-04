@@ -77,43 +77,44 @@ private enum SaveIncomingMediaEntry: ItemListNodeEntry {
     }
 }
 
-private func saveIncomingMediaControllerEntries(presentationData: PresentationData, settings: AutomaticMediaDownloadSettings) -> [SaveIncomingMediaEntry] {
+private func saveIncomingMediaControllerEntries(presentationData: PresentationData, settings: MediaAutoDownloadSettings) -> [SaveIncomingMediaEntry] {
     var entries: [SaveIncomingMediaEntry] = []
     
     entries.append(.header(presentationData.theme, presentationData.strings.SaveIncomingPhotosSettings_From))
-    entries.append(.contacts(presentationData.theme, presentationData.strings.AutoDownloadSettings_Contacts, settings.peers.contacts.saveDownloadedPhotos))
-    entries.append(.otherPrivate(presentationData.theme, presentationData.strings.AutoDownloadSettings_PrivateChats, settings.peers.otherPrivate.saveDownloadedPhotos))
-    entries.append(.groups(presentationData.theme, presentationData.strings.AutoDownloadSettings_GroupChats, settings.peers.groups.saveDownloadedPhotos))
-    entries.append(.channels(presentationData.theme, presentationData.strings.AutoDownloadSettings_Channels, settings.peers.channels.saveDownloadedPhotos))
+    entries.append(.contacts(presentationData.theme, presentationData.strings.AutoDownloadSettings_Contacts, settings.saveDownloadedPhotos.contacts))
+    entries.append(.otherPrivate(presentationData.theme, presentationData.strings.AutoDownloadSettings_PrivateChats, settings.saveDownloadedPhotos.otherPrivate))
+    entries.append(.groups(presentationData.theme, presentationData.strings.AutoDownloadSettings_GroupChats, settings.saveDownloadedPhotos.groups))
+    entries.append(.channels(presentationData.theme, presentationData.strings.AutoDownloadSettings_Channels, settings.saveDownloadedPhotos.channels))
     
     return entries
 }
 
-func saveIncomingMediaController(account: Account) -> ViewController {
+func saveIncomingMediaController(context: AccountContext) -> ViewController {
     let arguments = SaveIncomingMediaControllerArguments(toggle: { type in
-        let _ = updateMediaDownloadSettingsInteractively(postbox: account.postbox, { settings in
+        let _ = updateMediaDownloadSettingsInteractively(accountManager: context.sharedContext.accountManager, { settings in
             var settings = settings
             switch type {
                 case .contact:
-                    settings.peers.contacts.saveDownloadedPhotos = !settings.peers.contacts.saveDownloadedPhotos
+                    settings.saveDownloadedPhotos.contacts = !settings.saveDownloadedPhotos.contacts
                 case .otherPrivate:
-                    settings.peers.otherPrivate.saveDownloadedPhotos = !settings.peers.otherPrivate.saveDownloadedPhotos
+                    settings.saveDownloadedPhotos.otherPrivate = !settings.saveDownloadedPhotos.otherPrivate
                 case .group:
-                    settings.peers.groups.saveDownloadedPhotos = !settings.peers.groups.saveDownloadedPhotos
+                    settings.saveDownloadedPhotos.groups = !settings.saveDownloadedPhotos.groups
                 case .channel:
-                    settings.peers.channels.saveDownloadedPhotos = !settings.peers.channels.saveDownloadedPhotos
+                    settings.saveDownloadedPhotos.channels = !settings.saveDownloadedPhotos.channels
             }
             return settings
         }).start()
     })
     
-    let signal = combineLatest((account.applicationContext as! TelegramApplicationContext).presentationData, account.postbox.preferencesView(keys: [ApplicationSpecificPreferencesKeys.automaticMediaDownloadSettings])) |> deliverOnMainQueue
-    |> map { presentationData, prefs -> (ItemListControllerState, (ItemListNodeState<SaveIncomingMediaEntry>, SaveIncomingMediaEntry.ItemGenerationArguments)) in
-        let automaticMediaDownloadSettings: AutomaticMediaDownloadSettings
-        if let value = prefs.values[ApplicationSpecificPreferencesKeys.automaticMediaDownloadSettings] as? AutomaticMediaDownloadSettings {
+    let signal = combineLatest(queue: .mainQueue(), context.sharedContext.presentationData, context.sharedContext.accountManager.sharedData(keys: [ApplicationSpecificSharedDataKeys.automaticMediaDownloadSettings]))
+    |> deliverOnMainQueue
+    |> map { presentationData, sharedData -> (ItemListControllerState, (ItemListNodeState<SaveIncomingMediaEntry>, SaveIncomingMediaEntry.ItemGenerationArguments)) in
+        let automaticMediaDownloadSettings: MediaAutoDownloadSettings
+        if let value = sharedData.entries[ApplicationSpecificSharedDataKeys.automaticMediaDownloadSettings] as? MediaAutoDownloadSettings {
             automaticMediaDownloadSettings = value
         } else {
-            automaticMediaDownloadSettings = AutomaticMediaDownloadSettings.defaultSettings
+            automaticMediaDownloadSettings = MediaAutoDownloadSettings.defaultSettings
         }
         
         let controllerState = ItemListControllerState(theme: presentationData.theme, title: .text(presentationData.strings.SaveIncomingPhotosSettings_Title), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back), animateChanges: false)
@@ -122,7 +123,7 @@ func saveIncomingMediaController(account: Account) -> ViewController {
         return (controllerState, (listState, arguments))
     }
     
-    let controller = ItemListController(account: account, state: signal)
+    let controller = ItemListController(context: context, state: signal)
     return controller
 }
 

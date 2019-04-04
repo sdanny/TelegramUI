@@ -7,7 +7,7 @@ import SwiftSignalKit
 import LegacyComponents
 
 final class WebSearchGalleryFooterContentNode: GalleryFooterContentNode {
-    private let account: Account
+    private let context: AccountContext
     private var theme: PresentationTheme
     private var strings: PresentationStrings
     
@@ -17,8 +17,8 @@ final class WebSearchGalleryFooterContentNode: GalleryFooterContentNode {
     var cancel: (() -> Void)?
     var send: (() -> Void)?
     
-    init(account: Account, presentationData: PresentationData) {
-        self.account = account
+    init(context: AccountContext, presentationData: PresentationData) {
+        self.context = context
         self.theme = presentationData.theme
         self.strings = presentationData.strings
         
@@ -40,7 +40,8 @@ final class WebSearchGalleryFooterContentNode: GalleryFooterContentNode {
         
     }
     
-    override func updateLayout(width: CGFloat, leftInset: CGFloat, rightInset: CGFloat, bottomInset: CGFloat, contentInset: CGFloat, transition: ContainedViewLayoutTransition) -> CGFloat {
+    override func updateLayout(size: CGSize, leftInset: CGFloat, rightInset: CGFloat, bottomInset: CGFloat, contentInset: CGFloat, transition: ContainedViewLayoutTransition) -> CGFloat {
+        let width = size.width
         let panelSize: CGFloat = 49.0
         var panelHeight: CGFloat = panelSize + bottomInset
         panelHeight += contentInset

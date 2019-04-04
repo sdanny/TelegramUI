@@ -10,6 +10,7 @@ func requestContextResults(account: Account, botId: PeerId, query: String, peerI
     return requestChatContextResults(account: account, botId: botId, peerId: peerId, query: query, offset: offset)
     |> mapToSignal { results -> Signal<ChatContextResultCollection?, NoError> in
         var collection = existingResults
+        var updated: Bool = false
         if let existingResults = existingResults, let results = results {
             var newResults: [ChatContextResult] = []
             var existingIds = Set<String>()
@@ -21,13 +22,15 @@ func requestContextResults(account: Account, botId: PeerId, query: String, peerI
                 if !existingIds.contains(result.id) {
                     newResults.append(result)
                     existingIds.insert(result.id)
+                    updated = true
                 }
             }
             collection = ChatContextResultCollection(botId: existingResults.botId, peerId: existingResults.peerId, query: existingResults.query, geoPoint: existingResults.geoPoint, queryId: results.queryId, nextOffset: results.nextOffset, presentation: existingResults.presentation, switchPeer: existingResults.switchPeer, results: newResults, cacheTimeout: existingResults.cacheTimeout)
         } else {
             collection = results
+            updated = true
         }
-        if let collection = collection, collection.results.count < limit, let nextOffset = collection.nextOffset {
+        if let collection = collection, collection.results.count < limit, let nextOffset = collection.nextOffset, updated {
             let nextResults = requestContextResults(account: account, botId: botId, query: query, peerId: peerId, offset: nextOffset, existingResults: collection, limit: limit)
             if collection.results.count > 10 {
                 return .single(collection)
@@ -97,7 +100,7 @@ private func selectionChangedSignal(selectionState: TGMediaSelectionContext) -> 
 final class WebSearchController: ViewController {
     private var validLayout: ContainerViewLayout?
     
-    private let account: Account
+    private let context: AccountContext
     private let mode: WebSearchControllerMode
     private let peer: Peer?
     private let configuration: SearchBotsConfiguration
@@ -123,13 +126,13 @@ final class WebSearchController: ViewController {
     
     private var navigationContentNode: WebSearchNavigationContentNode?
     
-    init(account: Account, peer: Peer?, configuration: SearchBotsConfiguration, mode: WebSearchControllerMode) {
-        self.account = account
+    init(context: AccountContext, peer: Peer?, configuration: SearchBotsConfiguration, mode: WebSearchControllerMode) {
+        self.context = context
         self.mode = mode
         self.peer = peer
         self.configuration = configuration
         
-        let presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+        let presentationData = context.sharedContext.currentPresentationData.with { $0 }
         self.interfaceState = WebSearchInterfaceState(presentationData: presentationData)
         
         var searchQuery: String?
@@ -147,16 +150,16 @@ final class WebSearchController: ViewController {
             }
         }
         
-        let settings = self.account.postbox.preferencesView(keys: [ApplicationSpecificPreferencesKeys.webSearchSettings])
-        |> map { view -> WebSearchSettings in
-            if let current = view.values[ApplicationSpecificPreferencesKeys.webSearchSettings] as? WebSearchSettings {
+        let settings = self.context.sharedContext.accountManager.sharedData(keys: [ApplicationSpecificSharedDataKeys.webSearchSettings])
+        |> map { sharedData -> WebSearchSettings in
+            if let current = sharedData.entries[ApplicationSpecificSharedDataKeys.webSearchSettings] as? WebSearchSettings {
                 return current
             } else {
                 return WebSearchSettings.defaultSettings
             }
         }
 
-        self.disposable = ((combineLatest(settings, account.telegramApplicationContext.presentationData))
+        self.disposable = ((combineLatest(settings, context.sharedContext.presentationData))
         |> deliverOnMainQueue).start(next: { [weak self] settings, presentationData in
             guard let strongSelf = self else {
                 return
@@ -209,7 +212,7 @@ final class WebSearchController: ViewController {
             }
         }, deleteRecentQuery: { [weak self] query in
             if let strongSelf = self {
-                _ = removeRecentWebSearchQuery(postbox: strongSelf.account.postbox, string: query).start()
+                _ = removeRecentWebSearchQuery(postbox: strongSelf.context.account.postbox, string: query).start()
             }
         }, toggleSelection: { [weak self] result, value in
             if let strongSelf = self {
@@ -274,7 +277,7 @@ final class WebSearchController: ViewController {
     }
     
     override public func loadDisplayNode() {
-        self.displayNode = WebSearchControllerNode(account: self.account, theme: self.interfaceState.presentationData.theme, strings: interfaceState.presentationData.strings, controllerInteraction: self.controllerInteraction!, peer: self.peer, mode: self.mode.mode)
+        self.displayNode = WebSearchControllerNode(context: self.context, theme: self.interfaceState.presentationData.theme, strings: interfaceState.presentationData.strings, controllerInteraction: self.controllerInteraction!, peer: self.peer, mode: self.mode.mode)
         self.controllerNode.requestUpdateInterfaceState = { [weak self] animated, f in
             if let strongSelf = self {
                 strongSelf.updateInterfaceState(f)
@@ -317,7 +320,7 @@ final class WebSearchController: ViewController {
     
     private func updateSearchQuery(_ query: String) {
         if !query.isEmpty {
-            let _ = addRecentWebSearchQuery(postbox: self.account.postbox, string: query).start()
+            let _ = addRecentWebSearchQuery(postbox: self.context.account.postbox, string: query).start()
         }
         
         let scope: Signal<WebSearchScope?, NoError>
@@ -396,7 +399,7 @@ final class WebSearchController: ViewController {
             return .single({ _ in return .contextRequestResult(nil, nil) })
         }
         
-        let account = self.account
+        let account = self.context.account
         let contextBot = resolvePeerByName(account: account, name: name)
         |> mapToSignal { peerId -> Signal<Peer?, NoError> in
             if let peerId = peerId {

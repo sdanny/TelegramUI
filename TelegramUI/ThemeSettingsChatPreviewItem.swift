@@ -6,26 +6,24 @@ import TelegramCore
 import Postbox
 
 class ThemeSettingsChatPreviewItem: ListViewItem, ItemListItem {
-    let account: Account
+    let context: AccountContext
     let theme: PresentationTheme
     let componentTheme: PresentationTheme
     let strings: PresentationStrings
     let sectionId: ItemListSectionId
     let fontSize: PresentationFontSize
     let wallpaper: TelegramWallpaper
-    let wallpaperMode: WallpaperPresentationOptions
     let dateTimeFormat: PresentationDateTimeFormat
     let nameDisplayOrder: PresentationPersonNameOrder
     
-    init(account: Account, theme: PresentationTheme, componentTheme: PresentationTheme, strings: PresentationStrings, sectionId: ItemListSectionId, fontSize: PresentationFontSize, wallpaper: TelegramWallpaper, wallpaperMode: WallpaperPresentationOptions, dateTimeFormat: PresentationDateTimeFormat, nameDisplayOrder: PresentationPersonNameOrder) {
-        self.account = account
+    init(context: AccountContext, theme: PresentationTheme, componentTheme: PresentationTheme, strings: PresentationStrings, sectionId: ItemListSectionId, fontSize: PresentationFontSize, wallpaper: TelegramWallpaper, dateTimeFormat: PresentationDateTimeFormat, nameDisplayOrder: PresentationPersonNameOrder) {
+        self.context = context
         self.theme = theme
         self.componentTheme = componentTheme
         self.strings = strings
         self.sectionId = sectionId
         self.fontSize = fontSize
         self.wallpaper = wallpaper
-        self.wallpaperMode = wallpaperMode
         self.dateTimeFormat = dateTimeFormat
         self.nameDisplayOrder = nameDisplayOrder
     }
@@ -94,23 +92,7 @@ class ThemeSettingsChatPreviewItemNode: ListViewItemNode {
         self.containerNode = ASDisplayNode()
         self.containerNode.subnodeTransform = CATransform3DMakeRotation(CGFloat.pi, 0.0, 0.0, 1.0)
         
-        self.controllerInteraction = ChatControllerInteraction(openMessage: { _, _ in
-        return false }, openPeer: { _, _, _ in }, openPeerMention: { _ in }, openMessageContextMenu: { _, _, _, _ in }, navigateToMessage: { _, _ in }, clickThroughMessage: { }, toggleMessagesSelection: { _, _ in }, sendMessage: { _ in }, sendSticker: { _, _ in }, sendGif: { _ in }, requestMessageActionCallback: { _, _, _ in }, activateSwitchInline: { _, _ in }, openUrl: { _, _, _ in }, shareCurrentLocation: {}, shareAccountContact: {}, sendBotCommand: { _, _ in }, openInstantPage: { _ in  }, openWallpaper: { _ in  }, openHashtag: { _, _ in }, updateInputState: { _ in }, updateInputMode: { _ in }, openMessageShareMenu: { _ in
-        }, presentController: { _, _ in }, navigationController: {
-            return nil
-        }, presentGlobalOverlayController: { _, _ in }, callPeer: { _ in }, longTap: { _ in }, openCheckoutOrReceipt: { _ in }, openSearch: { }, setupReply: { _ in
-        }, canSetupReply: { _ in
-            return false
-        }, navigateToFirstDateMessage: { _ in
-        }, requestRedeliveryOfFailedMessages: { _ in
-        }, addContact: { _ in   
-        }, rateCall: { _, _ in
-        }, requestSelectMessagePollOption: { _, _ in
-        }, openAppStorePage: {
-        }, requestMessageUpdate: { _ in
-        }, cancelInteractiveKeyboardGestures: {
-        }, automaticMediaDownloadSettings: AutomaticMediaDownloadSettings.defaultSettings,
-           pollActionState: ChatInterfacePollActionState())
+        self.controllerInteraction = ChatControllerInteraction.default
         
         super.init(layerBacked: false, dynamicBounce: false)
         
@@ -126,46 +108,8 @@ class ThemeSettingsChatPreviewItemNode: ListViewItemNode {
         
         return { item, params, neighbors in
             var updatedBackgroundImage: UIImage?
-            if currentItem?.wallpaper != item.wallpaper || currentItem?.wallpaperMode != item.wallpaperMode {
-                switch item.wallpaper {
-                    case .builtin:
-                        if let filePath = frameworkBundle.path(forResource: "ChatWallpaperBuiltin0", ofType: "jpg") {
-                            updatedBackgroundImage = UIImage(contentsOfFile: filePath)?.precomposed()
-                        }
-                    case let .color(color):
-                        updatedBackgroundImage = generateImage(CGSize(width: 1.0, height: 1.0), rotatedContext: { size, context in
-                            context.setFillColor(UIColor(rgb: UInt32(bitPattern: color)).cgColor)
-                            context.fill(CGRect(origin: CGPoint(), size: size))
-                        })
-                    case let .image(representations):
-                        if let largest = largestImageRepresentation(representations) {
-                            if item.wallpaperMode.contains(.blur) {
-                                var image: UIImage?
-                                let _ = item.account.postbox.mediaBox.cachedResourceRepresentation(largest.resource, representation: CachedBlurredWallpaperRepresentation(), complete: true, fetch: true, attemptSynchronously: true).start(next: { data in
-                                    if data.complete {
-                                        image = UIImage(contentsOfFile: data.path)?.precomposed()
-                                    }
-                                })
-                                updatedBackgroundImage = image
-                            }
-                            if updatedBackgroundImage == nil, let path = item.account.postbox.mediaBox.completedResourcePath(largest.resource) {
-                                updatedBackgroundImage = UIImage(contentsOfFile: path)?.precomposed()
-                            }
-                        }
-                    case let .file(file):
-                        if item.wallpaperMode.contains(.blur) {
-                            var image: UIImage?
-                            let _ = item.account.postbox.mediaBox.cachedResourceRepresentation(file.file.resource, representation: CachedBlurredWallpaperRepresentation(), complete: true, fetch: true, attemptSynchronously: true).start(next: { data in
-                                if data.complete {
-                                    image = UIImage(contentsOfFile: data.path)?.precomposed()
-                                }
-                            })
-                            updatedBackgroundImage = image
-                        }
-                        if updatedBackgroundImage == nil, let path = item.account.postbox.mediaBox.completedResourcePath(file.file.resource) {
-                            updatedBackgroundImage = UIImage(contentsOfFile: path)?.precomposed()
-                        }
-                }
+            if currentItem?.wallpaper != item.wallpaper {
+                updatedBackgroundImage = chatControllerBackgroundImage(wallpaper: item.wallpaper, mediaBox: item.context.sharedContext.accountManager.mediaBox)
             }
             
             let insets: UIEdgeInsets
@@ -182,8 +126,8 @@ class ThemeSettingsChatPreviewItemNode: ListViewItemNode {
             
             let chatPresentationData = ChatPresentationData(theme: ChatPresentationThemeData(theme: item.componentTheme, wallpaper: item.wallpaper), fontSize: item.fontSize, strings: item.strings, dateTimeFormat: item.dateTimeFormat, nameDisplayOrder: item.nameDisplayOrder, disableAnimations: false)
             
-            let item2: ChatMessageItem = ChatMessageItem(presentationData: chatPresentationData, account: item.account, chatLocation: .peer(peerId), associatedData: ChatMessageItemAssociatedData(automaticDownloadPeerType: .contact, automaticDownloadNetworkType: .cellular, isRecentActions: false), controllerInteraction: controllerInteraction, content: .message(message: Message(stableId: 1, stableVersion: 0, id: MessageId(peerId: peerId, namespace: 0, id: 1), globallyUniqueId: nil, groupingKey: nil, groupInfo: nil, timestamp: 66000, flags: [.Incoming], tags: [], globalTags: [], localTags: [], forwardInfo: nil, author: nil, text: item.strings.Appearance_PreviewIncomingText, attributes: [ReplyMessageAttribute(messageId: replyMessageId)], media: [], peers: peers, associatedMessages: messages, associatedMessageIds: []), read: true, selection: .none, isAdmin: false), disableDate: true)
-            let item1: ChatMessageItem = ChatMessageItem(presentationData: chatPresentationData, account: item.account, chatLocation: .peer(peerId), associatedData: ChatMessageItemAssociatedData(automaticDownloadPeerType: .contact, automaticDownloadNetworkType: .cellular, isRecentActions: false), controllerInteraction: controllerInteraction, content: .message(message: Message(stableId: 2, stableVersion: 0, id: MessageId(peerId: peerId, namespace: 0, id: 2), globallyUniqueId: nil, groupingKey: nil, groupInfo: nil, timestamp: 66001, flags: [], tags: [], globalTags: [], localTags: [], forwardInfo: nil, author: TelegramUser(id: item.account.peerId, accessHash: nil, firstName: "", lastName: "", username: nil, phone: nil, photo: [], botInfo: nil, restrictionInfo: nil, flags: []), text: item.strings.Appearance_PreviewOutgoingText, attributes: [], media: [], peers: peers, associatedMessages: messages, associatedMessageIds: []), read: true, selection: .none, isAdmin: false), disableDate: true)
+            let item2: ChatMessageItem = ChatMessageItem(presentationData: chatPresentationData, context: item.context, chatLocation: .peer(peerId), associatedData: ChatMessageItemAssociatedData(automaticDownloadPeerType: .contact, automaticDownloadNetworkType: .cellular, isRecentActions: false), controllerInteraction: controllerInteraction, content: .message(message: Message(stableId: 1, stableVersion: 0, id: MessageId(peerId: peerId, namespace: 0, id: 1), globallyUniqueId: nil, groupingKey: nil, groupInfo: nil, timestamp: 66000, flags: [.Incoming], tags: [], globalTags: [], localTags: [], forwardInfo: nil, author: nil, text: item.strings.Appearance_PreviewIncomingText, attributes: [ReplyMessageAttribute(messageId: replyMessageId)], media: [], peers: peers, associatedMessages: messages, associatedMessageIds: []), read: true, selection: .none, attributes: ChatMessageEntryAttributes(isAdmin: false, isContact: false)), disableDate: true)
+            let item1: ChatMessageItem = ChatMessageItem(presentationData: chatPresentationData, context: item.context, chatLocation: .peer(peerId), associatedData: ChatMessageItemAssociatedData(automaticDownloadPeerType: .contact, automaticDownloadNetworkType: .cellular, isRecentActions: false), controllerInteraction: controllerInteraction, content: .message(message: Message(stableId: 2, stableVersion: 0, id: MessageId(peerId: peerId, namespace: 0, id: 2), globallyUniqueId: nil, groupingKey: nil, groupInfo: nil, timestamp: 66001, flags: [], tags: [], globalTags: [], localTags: [], forwardInfo: nil, author: TelegramUser(id: item.context.account.peerId, accessHash: nil, firstName: "", lastName: "", username: nil, phone: nil, photo: [], botInfo: nil, restrictionInfo: nil, flags: []), text: item.strings.Appearance_PreviewOutgoingText, attributes: [], media: [], peers: peers, associatedMessages: messages, associatedMessageIds: []), read: true, selection: .none, attributes: ChatMessageEntryAttributes(isAdmin: false, isContact: false)), disableDate: true)
             
             var node1: ListViewItemNode?
             if let current = currentNode1 {

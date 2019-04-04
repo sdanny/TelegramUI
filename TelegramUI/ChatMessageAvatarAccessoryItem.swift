@@ -6,25 +6,33 @@ import TelegramCore
 private let avatarFont: UIFont = UIFont(name: ".SFCompactRounded-Semibold", size: 16.0)!
 
 final class ChatMessageAvatarAccessoryItem: ListViewAccessoryItem {
-    private let account: Account
+    private let context: AccountContext
     private let peerId: PeerId
     private let peer: Peer?
     private let messageReference: MessageReference?
     private let messageTimestamp: Int32
     private let emptyColor: UIColor
     
-    init(account: Account, peerId: PeerId, peer: Peer?, messageReference: MessageReference?, messageTimestamp: Int32, emptyColor: UIColor) {
-        self.account = account
+    private let day: Int32
+    
+    init(context: AccountContext, peerId: PeerId, peer: Peer?, messageReference: MessageReference?, messageTimestamp: Int32, emptyColor: UIColor) {
+        self.context = context
         self.peerId = peerId
         self.peer = peer
         self.messageReference = messageReference
         self.messageTimestamp = messageTimestamp
         self.emptyColor = emptyColor
+        
+        var t: time_t = time_t(messageTimestamp)
+        var timeinfo: tm = tm()
+        gmtime_r(&t, &timeinfo)
+        
+        self.day = timeinfo.tm_mday
     }
     
     func isEqualToItem(_ other: ListViewAccessoryItem) -> Bool {
         if case let other as ChatMessageAvatarAccessoryItem = other {
-            return other.peerId == self.peerId && abs(other.messageTimestamp - self.messageTimestamp) < 10 * 60
+            return other.peerId == self.peerId && self.day == other.day && abs(other.messageTimestamp - self.messageTimestamp) < 10 * 60
         }
         
         return false
@@ -34,7 +42,7 @@ final class ChatMessageAvatarAccessoryItem: ListViewAccessoryItem {
         let node = ChatMessageAvatarAccessoryItemNode()
         node.frame = CGRect(origin: CGPoint(), size: CGSize(width: 38.0, height: 38.0))
         if let peer = self.peer {
-            node.setPeer(account: account, peer: peer, authorOfMessage: self.messageReference, emptyColor: self.emptyColor)
+            node.setPeer(account: self.context.account, theme: self.context.sharedContext.currentPresentationData.with({ $0 }).theme, peer: peer, authorOfMessage: self.messageReference, emptyColor: self.emptyColor)
         }
         return node
     }
@@ -56,7 +64,7 @@ final class ChatMessageAvatarAccessoryItemNode: ListViewAccessoryItemNode {
         self.addSubnode(self.avatarNode)
     }
     
-    func setPeer(account: Account, peer: Peer, authorOfMessage: MessageReference?, emptyColor: UIColor) {
-        self.avatarNode.setPeer(account: account, peer: peer, authorOfMessage: authorOfMessage, emptyColor: emptyColor)
+    func setPeer(account: Account, theme: PresentationTheme, peer: Peer, authorOfMessage: MessageReference?, emptyColor: UIColor) {
+        self.avatarNode.setPeer(account: account, theme: theme, peer: peer, authorOfMessage: authorOfMessage, emptyColor: emptyColor)
     }
 }

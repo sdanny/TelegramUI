@@ -5,8 +5,13 @@ import Postbox
 import TelegramCore
 import SwiftSignalKit
 
+private struct FetchControls {
+    let fetch: (Bool) -> Void
+    let cancel: () -> Void
+}
+
 final class InstantPageImageNode: ASDisplayNode, InstantPageNode {
-    private let account: Account
+    private let context: AccountContext
     private let webPage: TelegramMediaWebpage
     private var theme: InstantPageTheme
     let media: InstantPageMedia
@@ -16,6 +21,8 @@ final class InstantPageImageNode: ASDisplayNode, InstantPageNode {
     private let fit: Bool
     private let openMedia: (InstantPageMedia) -> Void
     private let longPressMedia: (InstantPageMedia) -> Void
+    
+    private var fetchControls: FetchControls?
     
     private let imageNode: TransformImageNode
     private let statusNode: RadialStatusNode
@@ -30,8 +37,8 @@ final class InstantPageImageNode: ASDisplayNode, InstantPageNode {
     
     private var themeUpdated: Bool = false
     
-    init(account: Account, theme: InstantPageTheme, webPage: TelegramMediaWebpage, media: InstantPageMedia, attributes: [InstantPageImageAttribute], interactive: Bool, roundCorners: Bool, fit: Bool, openMedia: @escaping (InstantPageMedia) -> Void, longPressMedia: @escaping (InstantPageMedia) -> Void) {
-        self.account = account
+    init(context: AccountContext, theme: InstantPageTheme, webPage: TelegramMediaWebpage, media: InstantPageMedia, attributes: [InstantPageImageAttribute], interactive: Bool, roundCorners: Bool, fit: Bool, openMedia: @escaping (InstantPageMedia) -> Void, longPressMedia: @escaping (InstantPageMedia) -> Void) {
+        self.context = context
         self.theme = theme
         self.webPage = webPage
         self.media = media
@@ -53,11 +60,20 @@ final class InstantPageImageNode: ASDisplayNode, InstantPageNode {
         
         if let image = media.media as? TelegramMediaImage, let largest = largestImageRepresentation(image.representations) {
             let imageReference = ImageMediaReference.webPage(webPage: WebpageReference(webPage), media: image)
-            self.imageNode.setSignal(chatMessagePhoto(postbox: account.postbox, photoReference: imageReference))
-            self.fetchedDisposable.set(chatMessagePhotoInteractiveFetched(account: account, photoReference: imageReference, storeToDownloadsPeerType: nil).start())
+            self.imageNode.setSignal(chatMessagePhoto(postbox: context.account.postbox, photoReference: imageReference))
+            
+            self.fetchedDisposable.set(chatMessagePhotoInteractiveFetched(context: context, photoReference: imageReference, storeToDownloadsPeerType: nil).start())
+            
+            self.fetchControls = FetchControls(fetch: { [weak self] manual in
+                if let strongSelf = self {
+                    strongSelf.fetchedDisposable.set(chatMessagePhotoInteractiveFetched(context: context, photoReference: imageReference, storeToDownloadsPeerType: nil).start())
+                }
+            }, cancel: {
+                chatMessagePhotoCancelInteractiveFetch(account: context.account, photoReference: imageReference)
+            })
             
             if interactive {
-                self.statusDisposable.set((account.postbox.mediaBox.resourceStatus(largest.resource) |> deliverOnMainQueue).start(next: { [weak self] status in
+                self.statusDisposable.set((context.account.postbox.mediaBox.resourceStatus(largest.resource) |> deliverOnMainQueue).start(next: { [weak self] status in
                     displayLinkDispatcher.dispatch {
                         if let strongSelf = self {
                             strongSelf.fetchStatus = status
@@ -76,10 +92,14 @@ final class InstantPageImageNode: ASDisplayNode, InstantPageNode {
         } else if let file = media.media as? TelegramMediaFile {
             let fileReference = FileMediaReference.webPage(webPage: WebpageReference(webPage), media: file)
             if file.mimeType.hasPrefix("image/") {
-                _ = freeMediaFileInteractiveFetched(account: account, fileReference: fileReference).start()
-                self.imageNode.setSignal(instantPageImageFile(account: account, fileReference: fileReference, fetched: true))
+                _ = freeMediaFileInteractiveFetched(account: context.account, fileReference: fileReference).start()
+                self.imageNode.setSignal(instantPageImageFile(account: context.account, fileReference: fileReference, fetched: true))
             } else {
-                self.imageNode.setSignal(chatMessageVideo(postbox: account.postbox, videoReference: fileReference))
+                self.imageNode.setSignal(chatMessageVideo(postbox: context.account.postbox, videoReference: fileReference))
+            }
+            if file.isVideo {
+                self.statusNode.transitionToState(.play(.white), animated: false, completion: {})
+                self.addSubnode(self.statusNode)
             }
         } else if let map = media.media as? TelegramMediaMap {
             self.addSubnode(self.pinNode)
@@ -94,11 +114,11 @@ final class InstantPageImageNode: ASDisplayNode, InstantPageNode {
                 }
             }
             let resource = MapSnapshotMediaResource(latitude: map.latitude, longitude: map.longitude, width: Int32(dimensions.width), height: Int32(dimensions.height))
-            self.imageNode.setSignal(chatMapSnapshotImage(account: account, resource: resource))
+            self.imageNode.setSignal(chatMapSnapshotImage(account: context.account, resource: resource))
         } else if let webPage = media.media as? TelegramMediaWebpage, case let .Loaded(content) = webPage.content, let image = content.image {
             let imageReference = ImageMediaReference.webPage(webPage: WebpageReference(webPage), media: image)
-            self.imageNode.setSignal(chatMessagePhoto(postbox: account.postbox, photoReference: imageReference))
-            self.fetchedDisposable.set(chatMessagePhotoInteractiveFetched(account: account, photoReference: imageReference, storeToDownloadsPeerType: nil).start())
+            self.imageNode.setSignal(chatMessagePhoto(postbox: context.account.postbox, photoReference: imageReference))
+            self.fetchedDisposable.set(chatMessagePhotoInteractiveFetched(context: context, photoReference: imageReference, storeToDownloadsPeerType: nil).start())
             self.statusNode.transitionToState(.play(.white), animated: false, completion: {})
             self.addSubnode(self.statusNode)
         }
@@ -139,9 +159,11 @@ final class InstantPageImageNode: ASDisplayNode, InstantPageNode {
         var state: RadialStatusNodeState = .none
         if let fetchStatus = self.fetchStatus {
             switch fetchStatus {
-                case let .Fetching(isActive, progress):
+                case let .Fetching(_, progress):
                     let adjustedProgress = max(progress, 0.027)
-                    state = .progress(color: .white, lineWidth: nil, value: CGFloat(adjustedProgress), cancelEnabled: false)
+                    state = .progress(color: .white, lineWidth: nil, value: CGFloat(adjustedProgress), cancelEnabled: true)
+                case .Remote:
+                    state = .download(.white)
                 default:
                     break
             }
@@ -198,8 +220,8 @@ final class InstantPageImageNode: ASDisplayNode, InstantPageNode {
                 }
                 
                 let makePinLayout = self.pinNode.asyncLayout()
-                let theme = self.account.telegramApplicationContext.currentPresentationData.with { $0 }.theme
-                let (pinSize, pinApply) = makePinLayout(self.account, theme, nil, false)
+                let theme = self.context.sharedContext.currentPresentationData.with { $0 }.theme
+                let (pinSize, pinApply) = makePinLayout(self.context.account, theme, nil, false)
                 self.pinNode.frame = CGRect(origin: CGPoint(x: floor((size.width - pinSize.width) / 2.0), y: floor(size.height * 0.5 - 10.0 - pinSize.height / 2.0)), size: pinSize)
                 pinApply()
             } else if let webPage = media.media as? TelegramMediaWebpage, case let .Loaded(content) = webPage.content, let image = content.image, let largest = largestImageRepresentation(image.representations) {
@@ -213,11 +235,11 @@ final class InstantPageImageNode: ASDisplayNode, InstantPageNode {
         }
     }
     
-    func transitionNode(media: InstantPageMedia) -> (ASDisplayNode, () -> UIView?)? {
+    func transitionNode(media: InstantPageMedia) -> (ASDisplayNode, () -> (UIView?, UIView?))? {
         if media == self.media {
             let imageNode = self.imageNode
             return (self.imageNode, { [weak imageNode] in
-                return imageNode?.view.snapshotContentTree(unhide: true)
+                return (imageNode?.view.snapshotContentTree(unhide: true), nil)
             })
         } else {
             return nil
@@ -233,16 +255,41 @@ final class InstantPageImageNode: ASDisplayNode, InstantPageNode {
         switch recognizer.state {
             case .ended:
                 if let (gesture, _) = recognizer.lastRecognizedGestureAndLocation {
-                    switch gesture {
-                        case .tap:
-                            if self.media.media is TelegramMediaImage && self.media.index == -1 {
-                                return
-                            }
-                            self.openMedia(self.media)
-                        case .longTap:
-                            self.longPressMedia(self.media)
-                        default:
-                            break
+                    if let fetchStatus = self.fetchStatus {
+                        switch fetchStatus {
+                            case .Local:
+                                switch gesture {
+                                    case .tap:
+                                        if self.media.media is TelegramMediaImage && self.media.index == -1 {
+                                            return
+                                        }
+                                        self.openMedia(self.media)
+                                    case .longTap:
+                                        self.longPressMedia(self.media)
+                                    default:
+                                        break
+                                }
+                            case .Remote:
+                                if case .tap = gesture {
+                                    self.fetchControls?.fetch(true)
+                                }
+                            case .Fetching:
+                                if case .tap = gesture {
+                                    self.fetchControls?.cancel()
+                                }
+                        }
+                    } else {
+                        switch gesture {
+                            case .tap:
+                                if self.media.media is TelegramMediaImage && self.media.index == -1 {
+                                    return
+                                }
+                                self.openMedia(self.media)
+                            case .longTap:
+                                self.longPressMedia(self.media)
+                            default:
+                                break
+                        }
                     }
                 }
             default:

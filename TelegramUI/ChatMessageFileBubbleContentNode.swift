@@ -47,7 +47,7 @@ class ChatMessageFileBubbleContentNode: ChatMessageBubbleContentNode {
                 }
             }
             
-            let incoming = item.message.effectivelyIncoming(item.account.peerId)
+            let incoming = item.message.effectivelyIncoming(item.context.account.peerId)
             let statusType: ChatMessageDateAndStatusType?
             switch preparePosition {
                 case .linear(_, .None):
@@ -66,10 +66,9 @@ class ChatMessageFileBubbleContentNode: ChatMessageBubbleContentNode {
                     statusType = nil
             }
             
-            var automaticDownload = false
-            automaticDownload = shouldDownloadMediaAutomatically(settings: item.controllerInteraction.automaticMediaDownloadSettings, peerType: item.associatedData.automaticDownloadPeerType, networkType: item.associatedData.automaticDownloadNetworkType, media: selectedFile!)
+            let automaticDownload = shouldDownloadMediaAutomatically(settings: item.controllerInteraction.automaticMediaDownloadSettings, peerType: item.associatedData.automaticDownloadPeerType, networkType: item.associatedData.automaticDownloadNetworkType, authorPeerId: item.message.author?.id, contactsPeerIds: item.associatedData.contactsPeerIds, media: selectedFile!)
             
-            let (initialWidth, refineLayout) = interactiveFileLayout(item.account, item.presentationData, item.message, selectedFile!, automaticDownload, item.message.effectivelyIncoming(item.account.peerId), item.associatedData.isRecentActions, statusType, CGSize(width: constrainedSize.width - layoutConstants.file.bubbleInsets.left - layoutConstants.file.bubbleInsets.right, height: constrainedSize.height))
+            let (initialWidth, refineLayout) = interactiveFileLayout(item.context, item.presentationData, item.message, selectedFile!, automaticDownload, item.message.effectivelyIncoming(item.context.account.peerId), item.associatedData.isRecentActions, statusType, CGSize(width: constrainedSize.width - layoutConstants.file.bubbleInsets.left - layoutConstants.file.bubbleInsets.right, height: constrainedSize.height))
             
             let contentProperties = ChatMessageBubbleContentProperties(hidesSimpleAuthorHeader: false, headerSpacing: 0.0, hidesBackground: .never, forceFullCorners: false, forceAlignment: .none)
             
@@ -93,7 +92,7 @@ class ChatMessageFileBubbleContentNode: ChatMessageBubbleContentNode {
         }
     }
     
-    override func transitionNode(messageId: MessageId, media: Media) -> (ASDisplayNode, () -> UIView?)? {
+    override func transitionNode(messageId: MessageId, media: Media) -> (ASDisplayNode, () -> (UIView?, UIView?))? {
         if self.item?.message.id == messageId {
             return self.interactiveFileNode.transitionNode(media: media)
         } else {

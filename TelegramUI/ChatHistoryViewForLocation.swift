@@ -4,8 +4,8 @@ import TelegramCore
 import SwiftSignalKit
 import Display
 
-func chatHistoryViewForLocation(_ location: ChatHistoryLocation, account: Account, chatLocation: ChatLocation, fixedCombinedReadStates: MessageHistoryViewReadState?, tagMask: MessageTags?, additionalData: [AdditionalMessageHistoryViewData], orderStatistics: MessageHistoryViewOrderStatistics = []) -> Signal<ChatHistoryViewUpdate, NoError> {
-    switch location {
+func chatHistoryViewForLocation(_ location: ChatHistoryLocationInput, account: Account, chatLocation: ChatLocation, fixedCombinedReadStates: MessageHistoryViewReadState?, tagMask: MessageTags?, additionalData: [AdditionalMessageHistoryViewData], orderStatistics: MessageHistoryViewOrderStatistics = []) -> Signal<ChatHistoryViewUpdate, NoError> {
+    switch location.content {
         case let .Initial(count):
             var preloaded = false
             var fadeIn = false
@@ -22,7 +22,7 @@ func chatHistoryViewForLocation(_ location: ChatHistoryLocation, account: Accoun
                 let combinedInitialData = ChatHistoryCombinedInitialData(initialData: initialData, buttonKeyboardMessage: view.topTaggedMessages.first, cachedData: cachedData, cachedDataMessages: cachedDataMessages, readStateData: readStateData)
                 
                 if preloaded {
-                    return .HistoryView(view: view, type: .Generic(type: updateType), scrollPosition: nil, originalScrollPosition: nil, initialData: combinedInitialData)
+                    return .HistoryView(view: view, type: .Generic(type: updateType), scrollPosition: nil, originalScrollPosition: nil, initialData: combinedInitialData, id: location.id)
                 } else {
                     if view.isLoading {
                         return .Loading(initialData: combinedInitialData)
@@ -50,7 +50,7 @@ func chatHistoryViewForLocation(_ location: ChatHistoryLocation, account: Accoun
                                         switch entry {
                                             case .HoleEntry:
                                                 break inner
-                                            case let .MessageEntry(message, _, _, _):
+                                            case let .MessageEntry(message, _, _, _, _):
                                                 if message.flags.contains(.Incoming) {
                                                     incomingCount += 1
                                                 }
@@ -82,7 +82,7 @@ func chatHistoryViewForLocation(_ location: ChatHistoryLocation, account: Accoun
                     }
                     
                     preloaded = true
-                    return .HistoryView(view: view, type: .Initial(fadeIn: fadeIn), scrollPosition: scrollPosition, originalScrollPosition: nil, initialData: ChatHistoryCombinedInitialData(initialData: initialData, buttonKeyboardMessage: view.topTaggedMessages.first, cachedData: cachedData, cachedDataMessages: cachedDataMessages, readStateData: readStateData))
+                    return .HistoryView(view: view, type: .Initial(fadeIn: fadeIn), scrollPosition: scrollPosition, originalScrollPosition: nil, initialData: ChatHistoryCombinedInitialData(initialData: initialData, buttonKeyboardMessage: view.topTaggedMessages.first, cachedData: cachedData, cachedDataMessages: cachedDataMessages, readStateData: readStateData), id: location.id)
                 }
             }
         case let .InitialSearch(searchLocation, count):
@@ -103,7 +103,7 @@ func chatHistoryViewForLocation(_ location: ChatHistoryLocation, account: Accoun
                 let combinedInitialData = ChatHistoryCombinedInitialData(initialData: initialData, buttonKeyboardMessage: view.topTaggedMessages.first, cachedData: cachedData, cachedDataMessages: cachedDataMessages, readStateData: readStateData)
                 
                 if preloaded {
-                    return .HistoryView(view: view, type: .Generic(type: updateType), scrollPosition: nil, originalScrollPosition: nil, initialData: combinedInitialData)
+                    return .HistoryView(view: view, type: .Generic(type: updateType), scrollPosition: nil, originalScrollPosition: nil, initialData: combinedInitialData, id: location.id)
                 } else {
                     let anchorIndex = view.anchorIndex
                     
@@ -127,7 +127,7 @@ func chatHistoryViewForLocation(_ location: ChatHistoryLocation, account: Accoun
                     }
                     
                     preloaded = true
-                    return .HistoryView(view: view, type: .Initial(fadeIn: fadeIn), scrollPosition: .index(index: anchorIndex, position: .center(.bottom), directionHint: .Down, animated: false), originalScrollPosition: nil, initialData: ChatHistoryCombinedInitialData(initialData: initialData, buttonKeyboardMessage: view.topTaggedMessages.first, cachedData: cachedData, cachedDataMessages: cachedDataMessages, readStateData: readStateData))
+                    return .HistoryView(view: view, type: .Initial(fadeIn: fadeIn), scrollPosition: .index(index: anchorIndex, position: .center(.bottom), directionHint: .Down, animated: false), originalScrollPosition: nil, initialData: ChatHistoryCombinedInitialData(initialData: initialData, buttonKeyboardMessage: view.topTaggedMessages.first, cachedData: cachedData, cachedDataMessages: cachedDataMessages, readStateData: readStateData), id: location.id)
                 }
             }
         case let .Navigation(index, anchorIndex, count):
@@ -142,7 +142,7 @@ func chatHistoryViewForLocation(_ location: ChatHistoryLocation, account: Accoun
                 } else {
                     genericType = updateType
                 }
-                return .HistoryView(view: view, type: .Generic(type: genericType), scrollPosition: nil, originalScrollPosition: nil, initialData: ChatHistoryCombinedInitialData(initialData: initialData, buttonKeyboardMessage: view.topTaggedMessages.first, cachedData: cachedData, cachedDataMessages: cachedDataMessages, readStateData: readStateData))
+                return .HistoryView(view: view, type: .Generic(type: genericType), scrollPosition: nil, originalScrollPosition: nil, initialData: ChatHistoryCombinedInitialData(initialData: initialData, buttonKeyboardMessage: view.topTaggedMessages.first, cachedData: cachedData, cachedDataMessages: cachedDataMessages, readStateData: readStateData), id: location.id)
             }
         case let .Scroll(index, anchorIndex, sourceIndex, scrollPosition, animated):
             let directionHint: ListViewScrollToItemDirectionHint = sourceIndex > index ? .Down : .Up
@@ -160,7 +160,7 @@ func chatHistoryViewForLocation(_ location: ChatHistoryLocation, account: Accoun
                 } else {
                     genericType = updateType
                 }
-                return .HistoryView(view: view, type: .Generic(type: genericType), scrollPosition: scrollPosition, originalScrollPosition: chatScrollPosition, initialData: ChatHistoryCombinedInitialData(initialData: initialData, buttonKeyboardMessage: view.topTaggedMessages.first, cachedData: cachedData, cachedDataMessages: cachedDataMessages, readStateData: readStateData))
+                return .HistoryView(view: view, type: .Generic(type: genericType), scrollPosition: scrollPosition, originalScrollPosition: chatScrollPosition, initialData: ChatHistoryCombinedInitialData(initialData: initialData, buttonKeyboardMessage: view.topTaggedMessages.first, cachedData: cachedData, cachedDataMessages: cachedDataMessages, readStateData: readStateData), id: location.id)
             }
         }
 }
@@ -174,16 +174,11 @@ private func extractAdditionalData(view: MessageHistoryView, chatLocation: ChatL
     var cachedDataMessages: [MessageId: Message]?
     var readStateData: [PeerId: ChatHistoryCombinedInitialReadStateData] = [:]
     var notificationSettings: PeerNotificationSettings?
-    var inAppNotificationSettings: InAppNotificationSettings?
         
     loop: for data in view.additionalData {
         switch data {
             case let .peerNotificationSettings(value):
                 notificationSettings = value
-            case let .preferencesEntry(key, value):
-                if key == ApplicationSpecificPreferencesKeys.inAppNotificationSettings {
-                    inAppNotificationSettings = value as? InAppNotificationSettings
-                }
             default:
                 break
         }
@@ -206,7 +201,7 @@ private func extractAdditionalData(view: MessageHistoryView, chatLocation: ChatL
                     case let .peer(peerId):
                         if let combinedReadStates = view.fixedReadStates {
                             if case let .peer(readStates) = combinedReadStates, let readState = readStates[peerId] {
-                                readStateData[peerId] = ChatHistoryCombinedInitialReadStateData(unreadCount: readState.count, totalState: totalUnreadState, inAppNotificationSettings: inAppNotificationSettings,  notificationSettings: notificationSettings)
+                                readStateData[peerId] = ChatHistoryCombinedInitialReadStateData(unreadCount: readState.count, totalState: totalUnreadState, notificationSettings: notificationSettings)
                             }
                         }
                     case .group:

@@ -64,8 +64,8 @@ class ChatListItem: ListViewItem {
             Queue.mainQueue().async {
                 completion(node, {
                     return (nil, { _ in
-                        node.setupItem(item: self)
-                        apply(false)
+                        node.setupItem(item: self, synchronousLoads: synchronousLoads)
+                        apply(synchronousLoads, false)
                         node.updateIsHighlighted(transition: .immediate)
                     })
                 })
@@ -77,7 +77,7 @@ class ChatListItem: ListViewItem {
         Queue.mainQueue().async {
             assert(node() is ChatListItemNode)
             if let nodeValue = node() as? ChatListItemNode {
-                nodeValue.setupItem(item: self)
+                nodeValue.setupItem(item: self, synchronousLoads: false)
                 let layout = nodeValue.asyncLayout()
                 async {
                     let (first, last, firstWithHeader, nextIsPinned) = ChatListItem.mergeType(item: self, previousItem: previousItem, nextItem: nextItem)
@@ -89,7 +89,7 @@ class ChatListItem: ListViewItem {
                     let (nodeLayout, apply) = layout(self, params, first, last, firstWithHeader, nextIsPinned)
                     Queue.mainQueue().async {
                         completion(nodeLayout, { _ in
-                            apply(animated)
+                            apply(false, animated)
                         })
                     }
                 }
@@ -250,6 +250,76 @@ class ChatListItemNode: ItemListRevealOptionsItemNode {
         }
     }
     
+    override var defaultAccessibilityLabel: String? {
+        get {
+            return self.accessibilityLabel
+        } set(value) {
+        }
+    }
+    override var accessibilityAttributedLabel: NSAttributedString? {
+        get {
+            return self.accessibilityLabel.flatMap(NSAttributedString.init(string:))
+        } set(value) {
+        }
+    }
+    override var accessibilityAttributedValue: NSAttributedString? {
+        get {
+            return self.accessibilityValue.flatMap(NSAttributedString.init(string:))
+        } set(value) {
+        }
+    }
+    
+    override var accessibilityLabel: String? {
+        get {
+            guard let item = self.item else {
+                return nil
+            }
+            switch item.content {
+                case .groupReference:
+                    return nil
+                case let .peer(peer):
+                    guard let chatMainPeer = peer.peer.chatMainPeer else {
+                        return nil
+                    }
+                    return chatMainPeer.displayTitle(strings: item.presentationData.strings, displayOrder: item.presentationData.nameDisplayOrder)
+            }
+        } set(value) {
+        }
+    }
+    
+    override var accessibilityValue: String? {
+        get {
+            guard let item = self.item else {
+                return nil
+            }
+            switch item.content {
+                case .groupReference:
+                    return nil
+                case let .peer(peer):
+                    if let message = peer.message {
+                        var result = ""
+                        if message.flags.contains(.Incoming) {
+                            result += "Message"
+                        } else {
+                            result += "Outgoing message"
+                        }
+                        let (_, initialHideAuthor, messageText) = chatListItemStrings(strings: item.presentationData.strings, nameDisplayOrder: item.presentationData.nameDisplayOrder, message: peer.message, chatPeer: peer.peer, accountPeerId: item.account.peerId)
+                        if message.flags.contains(.Incoming), !initialHideAuthor, let author = message.author, author is TelegramUser {
+                            result += "\nFrom: \(author.displayTitle(strings: item.presentationData.strings, displayOrder: item.presentationData.nameDisplayOrder))"
+                        }
+                        if !message.flags.contains(.Incoming), let combinedReadState = peer.combinedReadState, combinedReadState.isOutgoingMessageIndexRead(MessageIndex(message)) {
+                            result += "\nRead"
+                        }
+                        result += "\n\(messageText)"
+                        return result
+                    } else {
+                        return "Empty"
+                    }
+            }
+        } set(value) {
+        }
+    }
+    
     required init() {
         self.backgroundNode = ASDisplayNode()
         self.backgroundNode.isLayerBacked = true
@@ -308,6 +378,8 @@ class ChatListItemNode: ItemListRevealOptionsItemNode {
         
         super.init(layerBacked: false, dynamicBounce: false, rotated: false, seeThrough: false)
         
+        self.isAccessibilityElement = true
+        
         self.addSubnode(self.backgroundNode)
         self.addSubnode(self.separatorNode)
         self.addSubnode(self.avatarNode)
@@ -323,7 +395,7 @@ class ChatListItemNode: ItemListRevealOptionsItemNode {
         self.addSubnode(self.mutedIconNode)
     }
     
-    func setupItem(item: ChatListItem) {
+    func setupItem(item: ChatListItem, synchronousLoads: Bool) {
         self.item = item
         
         var peer: Peer?
@@ -339,7 +411,7 @@ class ChatListItemNode: ItemListRevealOptionsItemNode {
             if peer.id == item.account.peerId {
                 overrideImage = .savedMessagesIcon
             }
-            self.avatarNode.setPeer(account: item.account, peer: peer, overrideImage: overrideImage, emptyColor: item.presentationData.theme.list.mediaPlaceholderColor)
+            self.avatarNode.setPeer(account: item.account, theme: item.presentationData.theme, peer: peer, overrideImage: overrideImage, emptyColor: item.presentationData.theme.list.mediaPlaceholderColor, synchronousLoad: synchronousLoads)
         }
     }
     
@@ -347,7 +419,7 @@ class ChatListItemNode: ItemListRevealOptionsItemNode {
         let layout = self.asyncLayout()
         let (first, last, firstWithHeader, nextIsPinned) = ChatListItem.mergeType(item: item as! ChatListItem, previousItem: previousItem, nextItem: nextItem)
         let (nodeLayout, apply) = layout(item as! ChatListItem, params, first, last, firstWithHeader, nextIsPinned)
-        apply(false)
+        apply(false, false)
         self.contentSize = nodeLayout.contentSize
         self.insets = nodeLayout.insets
     }
@@ -400,7 +472,7 @@ class ChatListItemNode: ItemListRevealOptionsItemNode {
         item.interaction.togglePeerSelected(item.index.messageIndex.id.peerId)
     }
     
-    func asyncLayout() -> (_ item: ChatListItem, _ params: ListViewItemLayoutParams, _ first: Bool, _ last: Bool, _ firstWithHeader: Bool, _ nextIsPinned: Bool) -> (ListViewItemNodeLayout, (Bool) -> Void) {
+    func asyncLayout() -> (_ item: ChatListItem, _ params: ListViewItemLayoutParams, _ first: Bool, _ last: Bool, _ firstWithHeader: Bool, _ nextIsPinned: Bool) -> (ListViewItemNodeLayout, (Bool, Bool) -> Void) {
         let dateLayout = TextNode.asyncLayout(self.dateNode)
         let textLayout = TextNode.asyncLayout(self.textNode)
         let titleLayout = TextNode.asyncLayout(self.titleNode)
@@ -416,7 +488,7 @@ class ChatListItemNode: ItemListRevealOptionsItemNode {
         
         return { item, params, first, last, firstWithHeader, nextIsPinned in
             let account = item.account
-            let message: Message?
+            var message: Message?
             let itemPeer: RenderedPeer
             let combinedReadState: CombinedPeerReadState?
             let unreadCount: (count: Int32, unread: Bool, muted: Bool)
@@ -462,7 +534,7 @@ class ChatListItemNode: ItemListRevealOptionsItemNode {
                     summaryInfo = ChatListMessageTagSummaryInfo()
                     inputActivities = nil
                     isPeerGroup = true
-                    multipleAvatarsApply = multipleAvatarsLayout(item.account, topPeersValue, CGSize(width: 60.0, height: 60.0))
+                    multipleAvatarsApply = multipleAvatarsLayout(item.account, item.presentationData.theme, topPeersValue, CGSize(width: 60.0, height: 60.0))
                     if counters.unreadCount > 0 {
                         let count = counters.unreadCount + counters.unreadMutedCount
                         unreadCount = (count, count > 0, false)
@@ -472,6 +544,14 @@ class ChatListItemNode: ItemListRevealOptionsItemNode {
                         unreadCount = (0, false, false)
                     }
                     isAd = false
+            }
+            
+            if let messageValue = message {
+                for media in messageValue.media {
+                    if let media = media as? TelegramMediaAction, case .historyCleared = media.action {
+                        message = nil
+                    }
+                }
             }
             
             let theme = item.presentationData.theme.chatList
@@ -746,7 +826,7 @@ class ChatListItemNode: ItemListRevealOptionsItemNode {
                     peerLeftRevealOptions = []
             }
             
-            return (layout, { [weak self] animated in
+            return (layout, { [weak self] synchronousLoads, animated in
                 if let strongSelf = self {
                     strongSelf.layoutParams = (item, first, last, firstWithHeader, nextIsPinned, params)
                     
@@ -1052,6 +1132,9 @@ class ChatListItemNode: ItemListRevealOptionsItemNode {
                         strongSelf.setRevealOptions((left: peerLeftRevealOptions, right: peerRevealOptions))
                     }
                     strongSelf.setRevealOptionsOpened(item.hasActiveRevealControls, animated: true)
+                    
+                    strongSelf.view.accessibilityLabel = strongSelf.accessibilityLabel
+                    strongSelf.view.accessibilityValue = strongSelf.accessibilityValue
                 }
             })
         }
@@ -1145,8 +1228,8 @@ class ChatListItemNode: ItemListRevealOptionsItemNode {
             let updatedBadgeBackgroundFrame = CGRect(origin: CGPoint(x: contentRect.maxX - badgeBackgroundFrame.size.width, y: contentRect.maxY - badgeBackgroundFrame.size.height - 2.0), size: badgeBackgroundFrame.size)
             transition.updateFrame(node: self.badgeBackgroundNode, frame: updatedBadgeBackgroundFrame)
             
-            if self.mentionBadgeNode.supernode != nil {
-                let mentionBadgeSize = self.mentionBadgeNode.bounds.size
+            let mentionBadgeSize = self.mentionBadgeNode.bounds.size
+            if mentionBadgeSize != CGSize.zero {
                 let mentionBadgeOffset: CGFloat
                 if updatedBadgeBackgroundFrame.size.width.isZero || self.badgeBackgroundNode.image == nil {
                     mentionBadgeOffset = contentRect.maxX - mentionBadgeSize.width
@@ -1161,6 +1244,13 @@ class ChatListItemNode: ItemListRevealOptionsItemNode {
             
             let badgeTextFrame = self.badgeTextNode.frame
             transition.updateFrame(node: self.badgeTextNode, frame: CGRect(origin: CGPoint(x: updatedBadgeBackgroundFrame.midX - badgeTextFrame.size.width / 2.0, y: badgeTextFrame.minY), size: badgeTextFrame.size))
+        }
+    }
+    
+    override func touchesToOtherItemsPrevented() {
+        super.touchesToOtherItemsPrevented()
+        if let item = self.item {
+            item.interaction.setPeerIdWithRevealedOptions(nil, nil)
         }
     }
     

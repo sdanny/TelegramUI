@@ -17,9 +17,10 @@ protocol UniversalVideoContentNode: class {
     func togglePlayPause()
     func setSoundEnabled(_ value: Bool)
     func seek(_ timestamp: Double)
-    func playOnceWithSound(playAndRecord: Bool)
+    func playOnceWithSound(playAndRecord: Bool, seekToStart: MediaPlayerPlayOnceWithSoundSeek, actionAtEnd: MediaPlayerPlayOnceWithSoundActionAtEnd)
     func setForceAudioToSpeaker(_ forceAudioToSpeaker: Bool)
-    func continuePlayingWithoutSound()
+    func continuePlayingWithoutSound(actionAtEnd: MediaPlayerPlayOnceWithSoundActionAtEnd)
+    func setContinuePlayingWithoutSoundOnLostAudioSession(_ value: Bool)
     func setBaseRate(_ baseRate: Double)
     func addPlaybackCompleted(_ f: @escaping () -> Void) -> Int
     func removePlaybackCompleted(_ index: Int)
@@ -81,10 +82,9 @@ final class UniversalVideoNode: ASDisplayNode {
     private let manager: UniversalVideoContentManager
     private let content: UniversalVideoContent
     private let priority: UniversalVideoPriority
-    private let decoration: UniversalVideoDecoration
+    let decoration: UniversalVideoDecoration
     private let autoplay: Bool
     private let snapshotContentWhenGone: Bool
-    
     
     private var contentNode: (UniversalVideoContentNode & ASDisplayNode)?
     private var contentNodeId: Int32?
@@ -204,6 +204,7 @@ final class UniversalVideoNode: ASDisplayNode {
                 }
             }
             if let (contentNode, initiatedCreation) = contentNode {
+                contentNode.layer.removeAllAnimations()
                 self._ready.set(contentNode.ready)
                 if initiatedCreation && self.autoplay {
                     self.play()
@@ -270,10 +271,18 @@ final class UniversalVideoNode: ASDisplayNode {
         })
     }
     
-    func playOnceWithSound(playAndRecord: Bool) {
+    func playOnceWithSound(playAndRecord: Bool, seekToStart: MediaPlayerPlayOnceWithSoundSeek = .start, actionAtEnd: MediaPlayerPlayOnceWithSoundActionAtEnd = .loopDisablingSound) {
         self.manager.withUniversalVideoContent(id: self.content.id, { contentNode in
             if let contentNode = contentNode {
-                contentNode.playOnceWithSound(playAndRecord: playAndRecord)
+                contentNode.playOnceWithSound(playAndRecord: playAndRecord, seekToStart: seekToStart, actionAtEnd: actionAtEnd)
+            }
+        })
+    }
+    
+    func setContinuePlayingWithoutSoundOnLostAudioSession(_ value: Bool) {
+        self.manager.withUniversalVideoContent(id: self.content.id, { contentNode in
+            if let contentNode = contentNode {
+                contentNode.setContinuePlayingWithoutSoundOnLostAudioSession(value)
             }
         })
     }
@@ -294,10 +303,10 @@ final class UniversalVideoNode: ASDisplayNode {
         })
     }
     
-    func continuePlayingWithoutSound() {
+    func continuePlayingWithoutSound(actionAtEnd: MediaPlayerPlayOnceWithSoundActionAtEnd = .loopDisablingSound) {
         self.manager.withUniversalVideoContent(id: self.content.id, { contentNode in
             if let contentNode = contentNode {
-                contentNode.continuePlayingWithoutSound()
+                contentNode.continuePlayingWithoutSound(actionAtEnd: actionAtEnd)
             }
         })
     }

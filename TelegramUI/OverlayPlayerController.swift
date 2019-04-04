@@ -5,7 +5,7 @@ import Display
 import SwiftSignalKit
 
 final class OverlayPlayerController: ViewController {
-    private let account: Account
+    private let context: AccountContext
     let peerId: PeerId
     let type: MediaManagerPlayerType
     let initialMessageId: MessageId
@@ -19,8 +19,10 @@ final class OverlayPlayerController: ViewController {
         return self.displayNode as! OverlayPlayerControllerNode
     }
     
-    init(account: Account, peerId: PeerId, type: MediaManagerPlayerType, initialMessageId: MessageId, initialOrder: MusicPlaybackSettingsOrder, parentNavigationController: NavigationController?) {
-        self.account = account
+    private var accountInUseDisposable: Disposable?
+    
+    init(context: AccountContext, peerId: PeerId, type: MediaManagerPlayerType, initialMessageId: MessageId, initialOrder: MusicPlaybackSettingsOrder, parentNavigationController: NavigationController?) {
+        self.context = context
         self.peerId = peerId
         self.type = type
         self.initialMessageId = initialMessageId
@@ -32,24 +34,30 @@ final class OverlayPlayerController: ViewController {
         self.statusBar.statusBarStyle = .Ignore
         
         self.ready.set(.never())
+        
+        self.accountInUseDisposable = context.sharedContext.setAccountUserInterfaceInUse(context.account.id)
     }
     
     required init(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
     
+    deinit {
+        self.accountInUseDisposable?.dispose()
+    }
+    
     override public func loadDisplayNode() {
-        self.displayNode = OverlayPlayerControllerNode(account: self.account, peerId: self.peerId, type: self.type, initialMessageId: self.initialMessageId, initialOrder: self.initialOrder, requestDismiss: { [weak self] in
+        self.displayNode = OverlayPlayerControllerNode(context: self.context, peerId: self.peerId, type: self.type, initialMessageId: self.initialMessageId, initialOrder: self.initialOrder, requestDismiss: { [weak self] in
             self?.dismiss()
         }, requestShare: { [weak self] messageId in
             if let strongSelf = self {
-                let _ = (strongSelf.account.postbox.transaction { transaction -> Message? in
+                let _ = (strongSelf.context.account.postbox.transaction { transaction -> Message? in
                     return transaction.getMessage(messageId)
                 } |> deliverOnMainQueue).start(next: { message in
                     if let strongSelf = self, let message = message {
-                        let shareController = ShareController(account: strongSelf.account, subject: .messages([message]), showInChat: { message in
-                            if let strongSelf = self, let navigationController = strongSelf.parentNavigationController {
-                                navigateToChatController(navigationController: navigationController, account: strongSelf.account, chatLocation: .peer(message.id.peerId), messageId: messageId, animated: true)
+                        let shareController = ShareController(context: strongSelf.context, subject: .messages([message]), showInChat: { message in
+                            if let strongSelf = self {
+                                strongSelf.context.sharedContext.navigateToChat(accountId: strongSelf.context.account.id, peerId: message.id.peerId, messageId: message.id)
                                 strongSelf.dismiss()
                             }
                         }, externalShare: true)

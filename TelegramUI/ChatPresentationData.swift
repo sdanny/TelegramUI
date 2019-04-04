@@ -26,10 +26,16 @@ extension PresentationFontSize {
 extension TelegramWallpaper {
     var isEmpty: Bool {
         switch self {
-            case .builtin, .image, .file:
+            case .builtin, .image:
                 return false
-            case .color:
-                return true
+            case let .file(file):
+                if file.isPattern, file.settings.color == 0xffffff {
+                    return true
+                } else {
+                    return false
+                }
+            case let .color(color):
+                return color == 0xffffff
         }
     }
     var isBuiltin: Bool {
@@ -65,6 +71,9 @@ public final class ChatPresentationData {
     let disableAnimations: Bool
     
     let messageFont: UIFont
+    let messageEmojiFont1: UIFont
+    let messageEmojiFont2: UIFont
+    let messageEmojiFont3: UIFont
     let messageBoldFont: UIFont
     let messageItalicFont: UIFont
     let messageFixedFont: UIFont
@@ -79,6 +88,9 @@ public final class ChatPresentationData {
         
         let baseFontSize = fontSize.baseDisplaySize
         self.messageFont = UIFont.systemFont(ofSize: baseFontSize)
+        self.messageEmojiFont1 = UIFont.systemFont(ofSize: ceil(baseFontSize * 2.94))
+        self.messageEmojiFont2 = UIFont.systemFont(ofSize: ceil(baseFontSize * 2.29))
+        self.messageEmojiFont3 = UIFont.systemFont(ofSize: ceil(baseFontSize * 1.64))
         self.messageBoldFont = UIFont.boldSystemFont(ofSize: baseFontSize)
         self.messageItalicFont = UIFont.italicSystemFont(ofSize: baseFontSize)
         self.messageFixedFont = UIFont(name: "Menlo-Regular", size: baseFontSize - 1.0) ?? UIFont.systemFont(ofSize: baseFontSize)

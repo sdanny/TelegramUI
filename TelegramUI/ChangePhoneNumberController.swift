@@ -9,7 +9,7 @@ final class ChangePhoneNumberController: ViewController {
         return self.displayNode as! ChangePhoneNumberControllerNode
     }
     
-    private let account: Account
+    private let context: AccountContext
     
     private var currentData: (Int32, String?, String)?
     private let requestDisposable = MetaDisposable()
@@ -31,9 +31,9 @@ final class ChangePhoneNumberController: ViewController {
     
     private var presentationData: PresentationData
     
-    init(account: Account) {
-        self.account = account
-        self.presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+    init(context: AccountContext) {
+        self.context = context
+        self.presentationData = context.sharedContext.currentPresentationData.with { $0 }
         
         super.init(navigationBarPresentationData: NavigationBarPresentationData(presentationData: self.presentationData))
         
@@ -66,7 +66,7 @@ final class ChangePhoneNumberController: ViewController {
         self.displayNodeDidLoad()
         self.controllerNode.selectCountryCode = { [weak self] in
             if let strongSelf = self {
-                let controller = AuthorizationSequenceCountrySelectionController(strings: strongSelf.presentationData.strings, theme: AuthorizationSequenceCountrySelectionTheme(presentationTheme: strongSelf.presentationData.theme))
+                let controller = AuthorizationSequenceCountrySelectionController(strings: strongSelf.presentationData.strings, theme: strongSelf.presentationData.theme)
                 controller.completeWithCountryCode = { code, name in
                     if let strongSelf = self {
                         strongSelf.updateData(countryCode: Int32(code), countryName: name, number: strongSelf.controllerNode.codeAndNumber.2)
@@ -105,16 +105,16 @@ final class ChangePhoneNumberController: ViewController {
         }
         if !number.isEmpty {
             self.inProgress = true
-            self.requestDisposable.set((requestChangeAccountPhoneNumberVerification(account: self.account, phoneNumber: self.controllerNode.currentNumber) |> deliverOnMainQueue).start(next: { [weak self] next in
+            self.requestDisposable.set((requestChangeAccountPhoneNumberVerification(account: self.context.account, phoneNumber: self.controllerNode.currentNumber) |> deliverOnMainQueue).start(next: { [weak self] next in
                 if let strongSelf = self {
                     strongSelf.inProgress = false
-                    (strongSelf.navigationController as? NavigationController)?.pushViewController(changePhoneNumberCodeController(account: strongSelf.account, phoneNumber: strongSelf.controllerNode.currentNumber, codeData: next))
+                    (strongSelf.navigationController as? NavigationController)?.pushViewController(changePhoneNumberCodeController(context: strongSelf.context, phoneNumber: strongSelf.controllerNode.currentNumber, codeData: next))
                 }
             }, error: { [weak self] error in
                 if let strongSelf = self {
                     strongSelf.inProgress = false
                     
-                    let presentationData = strongSelf.account.telegramApplicationContext.currentPresentationData.with { $0 }
+                    let presentationData = strongSelf.context.sharedContext.currentPresentationData.with { $0 }
                 
                     let text: String
                     switch error {
@@ -128,7 +128,7 @@ final class ChangePhoneNumberController: ViewController {
                             text = presentationData.strings.Login_UnknownError
                     }
                     
-                    strongSelf.present(standardTextAlertController(theme: AlertControllerTheme(presentationTheme: presentationData.theme), title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})]), in: .window(.root))
+                    strongSelf.present(textAlertController(context: strongSelf.context, title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})]), in: .window(.root))
                 }
             }))
         } else {

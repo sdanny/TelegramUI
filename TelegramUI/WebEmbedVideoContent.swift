@@ -141,13 +141,16 @@ private final class WebEmbedVideoContentNode: ASDisplayNode, UniversalVideoConte
         self.playerNode.seek(timestamp: timestamp)
     }
     
-    func playOnceWithSound(playAndRecord: Bool) {
+    func playOnceWithSound(playAndRecord: Bool, seekToStart: MediaPlayerPlayOnceWithSoundSeek, actionAtEnd: MediaPlayerPlayOnceWithSoundActionAtEnd) {
     }
     
     func setForceAudioToSpeaker(_ forceAudioToSpeaker: Bool) {
     }
     
-    func continuePlayingWithoutSound() {
+    func continuePlayingWithoutSound(actionAtEnd: MediaPlayerPlayOnceWithSoundActionAtEnd) {
+    }
+    
+    func setContinuePlayingWithoutSoundOnLostAudioSession(_ value: Bool) {   
     }
     
     func setBaseRate(_ baseRate: Double) {

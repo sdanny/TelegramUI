@@ -103,7 +103,7 @@ enum ChatItemGalleryFooterContentTapAction {
 }
 
 final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode {
-    private let account: Account
+    private let context: AccountContext
     private var theme: PresentationTheme
     private var strings: PresentationStrings
     private var dateTimeFormat: PresentationDateTimeFormat
@@ -201,8 +201,8 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode {
         }
     }
     
-    init(account: Account, presentationData: PresentationData) {
-        self.account = account
+    init(context: AccountContext, presentationData: PresentationData) {
+        self.context = context
         self.theme = presentationData.theme
         self.strings = presentationData.strings
         self.dateTimeFormat = presentationData.dateTimeFormat
@@ -442,32 +442,52 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode {
         self.currentWebPageAndMedia = (webPage, media)
     }
     
-    override func updateLayout(width: CGFloat, leftInset: CGFloat, rightInset: CGFloat, bottomInset: CGFloat, contentInset: CGFloat, transition: ContainedViewLayoutTransition) -> CGFloat {
+    override func updateLayout(size: CGSize, leftInset: CGFloat, rightInset: CGFloat, bottomInset: CGFloat, contentInset: CGFloat, transition: ContainedViewLayoutTransition) -> CGFloat {
+        let width = size.width
+        var bottomInset = bottomInset
+        if bottomInset < 30.0 {
+            bottomInset -= 7.0
+        }
         var panelHeight: CGFloat = 44.0 + bottomInset
         panelHeight += contentInset
+        
+        let isLandscape = size.width > size.height
+        let displayCaption = !self.textNode.isHidden && !isLandscape
+        
         var textFrame = CGRect()
         if !self.textNode.isHidden {
             let sideInset: CGFloat = 8.0 + leftInset
             let topInset: CGFloat = 8.0
             let textBottomInset: CGFloat = 8.0
             let textSize = self.textNode.updateLayout(CGSize(width: width - sideInset * 2.0, height: CGFloat.greatestFiniteMagnitude))
-            panelHeight += textSize.height + topInset + textBottomInset
+            if displayCaption {
+                panelHeight += textSize.height + topInset + textBottomInset
+            }
             textFrame = CGRect(origin: CGPoint(x: sideInset, y: topInset), size: textSize)
         }
         
         if let scrubberView = self.scrubberView, scrubberView.superview == self.view {
-            let sideInset: CGFloat = 8.0 + leftInset
-            let topInset: CGFloat = 8.0
+            var topInset: CGFloat = 8.0
             let bottomInset: CGFloat = 2.0
-            panelHeight += 34.0 + topInset + bottomInset
-            if self.textNode.isHidden {
+            panelHeight += topInset + bottomInset
+            if isLandscape {
+                panelHeight += 14.0
+            } else {
+                panelHeight += 34.0
+            }
+            if self.textNode.isHidden || !displayCaption {
                 panelHeight += 8.0
+            } else {
+                topInset += textFrame.maxY
             }
             
-            scrubberView.frame = CGRect(origin: CGPoint(x: sideInset, y: topInset + textFrame.maxY), size: CGSize(width: width - sideInset * 2.0, height: 34.0))
+            let scrubberFrame = CGRect(origin: CGPoint(x: leftInset, y: topInset), size: CGSize(width: width - leftInset - rightInset, height: 34.0))
+            scrubberView.updateLayout(size: size, leftInset: leftInset, rightInset: rightInset)
+            transition.updateFrame(layer: scrubberView.layer, frame: scrubberFrame)
         }
         
         self.textNode.frame = textFrame
+        transition.updateAlpha(node: self.textNode, alpha: displayCaption ? 1.0 : 0.0)
         
         self.actionButton.frame = CGRect(origin: CGPoint(x: leftInset, y: panelHeight - bottomInset - 44.0), size: CGSize(width: 44.0, height: 44.0))
         self.deleteButton.frame = CGRect(origin: CGPoint(x: width - 44.0 - rightInset, y: panelHeight - bottomInset - 44.0), size: CGSize(width: 44.0, height: 44.0))
@@ -544,17 +564,17 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode {
     
     @objc func deleteButtonPressed() {
         if let currentMessage = self.currentMessage {
-            let _ = (self.account.postbox.transaction { transaction -> [Message] in
+            let _ = (self.context.account.postbox.transaction { transaction -> [Message] in
                 return transaction.getMessageGroup(currentMessage.id) ?? []
             } |> deliverOnMainQueue).start(next: { [weak self] messages in
                 if let strongSelf = self, !messages.isEmpty {
                     if messages.count == 1 {
                         strongSelf.commitDeleteMessages(messages, ask: true)
                     } else {
-                        let presentationData = strongSelf.account.telegramApplicationContext.currentPresentationData.with { $0 }
+                        let presentationData = strongSelf.context.sharedContext.currentPresentationData.with { $0 }
                         var generalMessageContentKind: MessageContentKind?
                         for message in messages {
-                            let currentKind = messageContentKind(message, strings: presentationData.strings, nameDisplayOrder: presentationData.nameDisplayOrder, accountPeerId: strongSelf.account.peerId)
+                            let currentKind = messageContentKind(message, strings: presentationData.strings, nameDisplayOrder: presentationData.nameDisplayOrder, accountPeerId: strongSelf.context.account.peerId)
                             if generalMessageContentKind == nil || generalMessageContentKind == currentKind {
                                 generalMessageContentKind = currentKind
                             } else {
@@ -613,13 +633,13 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode {
     }
 
     private func commitDeleteMessages(_ messages: [Message], ask: Bool) {
-        self.messageContextDisposable.set((chatAvailableMessageActions(postbox: self.account.postbox, accountPeerId: self.account.peerId, messageIds: Set(messages.map { $0.id })) |> deliverOnMainQueue).start(next: { [weak self] actions in
+        self.messageContextDisposable.set((chatAvailableMessageActions(postbox: self.context.account.postbox, accountPeerId: self.context.account.peerId, messageIds: Set(messages.map { $0.id })) |> deliverOnMainQueue).start(next: { [weak self] actions in
             if let strongSelf = self, let controllerInteration = strongSelf.controllerInteraction, !actions.options.isEmpty {
                 let actionSheet = ActionSheetController(presentationTheme: strongSelf.theme)
                 var items: [ActionSheetItem] = []
                 var personalPeerName: String?
                 var isChannel = false
-                var peerId: PeerId = messages[0].id.peerId
+                let peerId: PeerId = messages[0].id.peerId
                 if let user = messages[0].peers[messages[0].id.peerId] as? TelegramUser {
                     personalPeerName = user.compactDisplayTitle
                 } else if let channel = messages[0].peers[messages[0].id.peerId] as? TelegramChannel, case .broadcast = channel.info {
@@ -638,26 +658,26 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode {
                     items.append(ActionSheetButtonItem(title: globalTitle, color: .destructive, action: { [weak actionSheet] in
                         actionSheet?.dismissAnimated()
                         if let strongSelf = self {
-                            let _ = deleteMessagesInteractively(postbox: strongSelf.account.postbox, messageIds: messages.map { $0.id }, type: .forEveryone).start()
+                            let _ = deleteMessagesInteractively(postbox: strongSelf.context.account.postbox, messageIds: messages.map { $0.id }, type: .forEveryone).start()
                             strongSelf.controllerInteraction?.dismissController()
                         }
                     }))
                 }
                 if actions.options.contains(.deleteLocally) {
                     var localOptionText = strongSelf.strings.Conversation_DeleteMessagesForMe
-                    if strongSelf.account.peerId == peerId {
+                    if strongSelf.context.account.peerId == peerId {
                         localOptionText = strongSelf.strings.Conversation_Moderate_Delete
                     }
                     items.append(ActionSheetButtonItem(title: localOptionText, color: .destructive, action: { [weak actionSheet] in
                         actionSheet?.dismissAnimated()
                         if let strongSelf = self {
-                            let _ = deleteMessagesInteractively(postbox: strongSelf.account.postbox, messageIds: messages.map { $0.id }, type: .forLocalPeer).start()
+                            let _ = deleteMessagesInteractively(postbox: strongSelf.context.account.postbox, messageIds: messages.map { $0.id }, type: .forLocalPeer).start()
                             strongSelf.controllerInteraction?.dismissController()
                         }
                     }))
                 }
                 if !ask && items.count == 1 {
-                    let _ = deleteMessagesInteractively(postbox: strongSelf.account.postbox, messageIds: messages.map { $0.id }, type: .forEveryone).start()
+                    let _ = deleteMessagesInteractively(postbox: strongSelf.context.account.postbox, messageIds: messages.map { $0.id }, type: .forEveryone).start()
                     strongSelf.controllerInteraction?.dismissController()
                 } else {
                     actionSheet.setItemGroups([ActionSheetItemGroup(items: items), ActionSheetItemGroup(items: [
@@ -673,14 +693,14 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode {
     
     @objc func actionButtonPressed() {
         if let currentMessage = self.currentMessage {
-            let _ = (self.account.postbox.transaction { transaction -> [Message] in
+            let _ = (self.context.account.postbox.transaction { transaction -> [Message] in
                 return transaction.getMessageGroup(currentMessage.id) ?? []
             } |> deliverOnMainQueue).start(next: { [weak self] messages in
                 if let strongSelf = self, !messages.isEmpty {
-                    let presentationData = strongSelf.account.telegramApplicationContext.currentPresentationData.with { $0 }
+                    let presentationData = strongSelf.context.sharedContext.currentPresentationData.with { $0 }
                     var generalMessageContentKind: MessageContentKind?
                     for message in messages {
-                        let currentKind = messageContentKind(message, strings: presentationData.strings, nameDisplayOrder: presentationData.nameDisplayOrder, accountPeerId: strongSelf.account.peerId)
+                        let currentKind = messageContentKind(message, strings: presentationData.strings, nameDisplayOrder: presentationData.nameDisplayOrder, accountPeerId: strongSelf.context.account.peerId)
                         if generalMessageContentKind == nil || generalMessageContentKind == currentKind {
                             generalMessageContentKind = currentKind
                         } else {
@@ -706,12 +726,12 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode {
                             } else if let webpage = m as? TelegramMediaWebpage, case let .Loaded(content) = webpage.content {
                                 if content.embedType == "iframe" {
                                     let item = OpenInItem.url(url: content.url)
-                                    if availableOpenInOptions(applicationContext: strongSelf.account.telegramApplicationContext, item: item).count > 1 {
+                                    if availableOpenInOptions(context: strongSelf.context, item: item).count > 1 {
                                         preferredAction = .custom(action: ShareControllerAction(title: presentationData.strings.Conversation_FileOpenIn, action: { [weak self] in
                                             if let strongSelf = self {
-                                                let openInController = OpenInActionSheetController(account: strongSelf.account, item: item, additionalAction: nil, openUrl: { [weak self] url in
-                                                    if let strongSelf = self, let applicationContext = strongSelf.account.applicationContext as? TelegramApplicationContext {
-                                                        openExternalUrl(account: strongSelf.account, url: url, forceExternal: true, presentationData: presentationData, applicationContext: applicationContext, navigationController: nil, dismissInput: {})
+                                                let openInController = OpenInActionSheetController(context: strongSelf.context, item: item, additionalAction: nil, openUrl: { [weak self] url in
+                                                    if let strongSelf = self {
+                                                        openExternalUrl(context: strongSelf.context, url: url, forceExternal: true, presentationData: presentationData, navigationController: nil, dismissInput: {})
                                                     }
                                                 })
                                                 strongSelf.controllerInteraction?.presentController(openInController, nil)
@@ -720,7 +740,7 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode {
                                     } else {
                                         preferredAction = .custom(action: ShareControllerAction(title: presentationData.strings.Web_OpenExternal, action: { [weak self] in
                                             if let strongSelf = self {
-                                                openExternalUrl(account: strongSelf.account, url: content.url, presentationData: presentationData, applicationContext: strongSelf.account.telegramApplicationContext, navigationController: nil, dismissInput: {})
+                                                openExternalUrl(context: strongSelf.context, url: content.url, presentationData: presentationData, navigationController: nil, dismissInput: {})
                                             }
                                         }))
                                     }
@@ -739,7 +759,7 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode {
                                     preferredAction = .custom(action: ShareControllerAction(title: presentationData.strings.Preview_SaveGif, action: { [weak self] in
                                         if let strongSelf = self {
                                             let message = messages[0]
-                                            let _ = addSavedGif(postbox: strongSelf.account.postbox, fileReference: .message(message: MessageReference(message), media: file)).start()
+                                            let _ = addSavedGif(postbox: strongSelf.context.account.postbox, fileReference: .message(message: MessageReference(message), media: file)).start()
                                         }
                                     }))
                                 } else if file.mimeType.hasPrefix("image/") || file.mimeType.hasPrefix("video/") {
@@ -747,7 +767,7 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode {
                                 }
                             }
                         }
-                        let shareController = ShareController(account: strongSelf.account, subject: subject, preferredAction: preferredAction)
+                        let shareController = ShareController(context: strongSelf.context, subject: subject, preferredAction: preferredAction)
                         strongSelf.controllerInteraction?.presentController(shareController, nil)
                     } else {
                         var singleText = presentationData.strings.Media_ShareItem(1)
@@ -768,7 +788,7 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode {
                         
                         let shareAction: ([Message]) -> Void = { messages in
                             if let strongSelf = self {
-                                let shareController = ShareController(account: strongSelf.account, subject: .messages(messages), preferredAction: preferredAction)
+                                let shareController = ShareController(context: strongSelf.context, subject: .messages(messages), preferredAction: preferredAction)
                                 strongSelf.controllerInteraction?.presentController(shareController, nil)
                             }
                         }
@@ -797,7 +817,7 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode {
                 }
             })
         } else if let (webPage, media) = self.currentWebPageAndMedia {
-            let presentationData = self.account.telegramApplicationContext.currentPresentationData.with { $0 }
+            let presentationData = self.context.sharedContext.currentPresentationData.with { $0 }
             
             var preferredAction = ShareControllerPreferredAction.default
             var subject = ShareControllerSubject.media(.webPage(webPage: WebpageReference(webPage), media: media))
@@ -806,7 +826,7 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode {
                 if file.isAnimated {
                     preferredAction = .custom(action: ShareControllerAction(title: presentationData.strings.Preview_SaveGif, action: { [weak self] in
                         if let strongSelf = self {
-                            let _ = addSavedGif(postbox: strongSelf.account.postbox, fileReference: .webPage(webPage: WebpageReference(webPage), media: file)).start()
+                            let _ = addSavedGif(postbox: strongSelf.context.account.postbox, fileReference: .webPage(webPage: WebpageReference(webPage), media: file)).start()
                         }
                     }))
                 } else if file.mimeType.hasPrefix("image/") || file.mimeType.hasPrefix("video/") {
@@ -817,12 +837,12 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode {
                     subject = .url(content.url)
                     
                     let item = OpenInItem.url(url: content.url)
-                    if availableOpenInOptions(applicationContext: self.account.telegramApplicationContext, item: item).count > 1 {
+                    if availableOpenInOptions(context: self.context, item: item).count > 1 {
                         preferredAction = .custom(action: ShareControllerAction(title: presentationData.strings.Conversation_FileOpenIn, action: { [weak self] in
                             if let strongSelf = self {
-                                let openInController = OpenInActionSheetController(account: strongSelf.account, item: item, additionalAction: nil, openUrl: { [weak self] url in
-                                    if let strongSelf = self, let applicationContext = strongSelf.account.applicationContext as? TelegramApplicationContext {
-                                        openExternalUrl(account: strongSelf.account, url: url, forceExternal: true, presentationData: presentationData, applicationContext: applicationContext, navigationController: nil, dismissInput: {})
+                                let openInController = OpenInActionSheetController(context: strongSelf.context, item: item, additionalAction: nil, openUrl: { [weak self] url in
+                                    if let strongSelf = self {
+                                        openExternalUrl(context: strongSelf.context, url: url, forceExternal: true, presentationData: presentationData, navigationController: nil, dismissInput: {})
                                     }
                                 })
                                 strongSelf.controllerInteraction?.presentController(openInController, nil)
@@ -831,7 +851,7 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode {
                     } else {
                         preferredAction = .custom(action: ShareControllerAction(title: presentationData.strings.Web_OpenExternal, action: { [weak self] in
                             if let strongSelf = self {
-                                openExternalUrl(account: strongSelf.account, url: content.url, presentationData: presentationData, applicationContext: strongSelf.account.telegramApplicationContext, navigationController: nil, dismissInput: {})
+                                openExternalUrl(context: strongSelf.context, url: content.url, presentationData: presentationData, navigationController: nil, dismissInput: {})
                             }
                         }))
                     }
@@ -845,7 +865,7 @@ final class ChatItemGalleryFooterContentNode: GalleryFooterContentNode {
                     }
                 }
             }
-            let shareController = ShareController(account: self.account, subject: subject, preferredAction: preferredAction)
+            let shareController = ShareController(context: self.context, subject: subject, preferredAction: preferredAction)
             self.controllerInteraction?.presentController(shareController, nil)
         }
     }

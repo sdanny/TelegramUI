@@ -8,6 +8,7 @@ import SwiftSignalKit
 import TelegramUIPrivateModule
 
 final class CallControllerNode: ASDisplayNode {
+    private let sharedContext: SharedAccountContext
     private let account: Account
     
     private let statusBar: StatusBar
@@ -15,6 +16,7 @@ final class CallControllerNode: ASDisplayNode {
     private var presentationData: PresentationData
     private var peer: Peer?
     private let debugInfo: Signal<(String, String), NoError>
+    private var forceReportRating = false
     
     private let containerNode: ASDisplayNode
     
@@ -51,8 +53,10 @@ final class CallControllerNode: ASDisplayNode {
     var endCall: (() -> Void)?
     var back: (() -> Void)?
     var dismissedInteractively: (() -> Void)?
+    var presentCallRating: ((CallId) -> Void)?
     
-    init(account: Account, presentationData: PresentationData, statusBar: StatusBar, debugInfo: Signal<(String, String), NoError>, shouldStayHiddenUntilConnection: Bool = false) {
+    init(sharedContext: SharedAccountContext, account: Account, presentationData: PresentationData, statusBar: StatusBar, debugInfo: Signal<(String, String), NoError>, shouldStayHiddenUntilConnection: Bool = false) {
+        self.sharedContext = sharedContext
         self.account = account
         self.presentationData = presentationData
         self.statusBar = statusBar
@@ -147,7 +151,7 @@ final class CallControllerNode: ASDisplayNode {
         self.view.addGestureRecognizer(tapRecognizer)
     }
     
-    func updatePeer(peer: Peer) {
+    func updatePeer(accountPeer: Peer, peer: Peer, hasOther: Bool) {
         if !arePeersEqual(self.peer, peer) {
             self.peer = peer
             if let peerReference = PeerReference(peer), !peer.profileImageRepresentations.isEmpty {
@@ -160,6 +164,13 @@ final class CallControllerNode: ASDisplayNode {
             }
             
             self.statusNode.title = peer.displayTitle
+            if hasOther {
+                self.statusNode.subtitle = self.presentationData.strings.Call_AnsweringWithAccount(accountPeer.displayTitle(strings: self.presentationData.strings, displayOrder: self.presentationData.nameDisplayOrder)).0
+                
+                if let callState = callState {
+                    self.updateCallState(callState)
+                }
+            }
             
             if let (layout, navigationBarHeight) = self.validLayout {
                 self.containerLayoutUpdated(layout, navigationBarHeight: navigationBarHeight, transition: .immediate)
@@ -190,7 +201,7 @@ final class CallControllerNode: ASDisplayNode {
                 }
             case .terminating:
                 statusValue = .text(self.presentationData.strings.Call_StatusEnded)
-            case let .terminated(reason):
+            case let .terminated(_, reason, _):
                 if let reason = reason {
                     switch reason {
                         case let .ended(type):
@@ -207,7 +218,11 @@ final class CallControllerNode: ASDisplayNode {
                     statusValue = .text(self.presentationData.strings.Call_StatusEnded)
                 }
             case .ringing:
-                statusValue = .text(self.presentationData.strings.Call_StatusIncoming)
+                var text = self.presentationData.strings.Call_StatusIncoming
+                if !self.statusNode.subtitle.isEmpty {
+                    text += "\n\(self.statusNode.subtitle)"
+                }
+                statusValue = .text(text)
             case let .active(timestamp, reception, keyVisualHash):
                 let strings = self.presentationData.strings
                 statusValue = .timer({ value in
@@ -263,6 +278,10 @@ final class CallControllerNode: ASDisplayNode {
         self.statusNode.reception = statusReception
         
         self.updateButtonsMode()
+        
+        if case let .terminated(id, _, reportRating) = callState, let callId = id, reportRating || self.forceReportRating {
+            self.presentCallRating?(callId)
+        }
     }
     
     private func updateButtonsMode() {
@@ -430,21 +449,25 @@ final class CallControllerNode: ASDisplayNode {
             } else {
                 let point = recognizer.location(in: recognizer.view)
                 if self.statusNode.frame.contains(point) {
-                    let timestamp = CACurrentMediaTime()
-                    if self.debugTapCounter.0 < timestamp - 0.75 {
-                        self.debugTapCounter.0 = timestamp
-                        self.debugTapCounter.1 = 0
-                    }
-                    
-                    if self.debugTapCounter.0 >= timestamp - 0.75 {
-                        self.debugTapCounter.0 = timestamp
-                        self.debugTapCounter.1 += 1
-                    }
-                    
-                    if self.debugTapCounter.1 >= 10 {
-                        self.debugTapCounter.1 = 0
-                        
+                    if !GlobalExperimentalSettings.isAppStoreBuild {
                         self.presentDebugNode()
+                    } else {
+                        let timestamp = CACurrentMediaTime()
+                        if self.debugTapCounter.0 < timestamp - 0.75 {
+                            self.debugTapCounter.0 = timestamp
+                            self.debugTapCounter.1 = 0
+                        }
+                        
+                        if self.debugTapCounter.0 >= timestamp - 0.75 {
+                            self.debugTapCounter.0 = timestamp
+                            self.debugTapCounter.1 += 1
+                        }
+                        
+                        if self.debugTapCounter.1 >= 10 {
+                            self.debugTapCounter.1 = 0
+                            
+                            self.presentDebugNode()
+                        }
                     }
                 }
             }
@@ -455,6 +478,8 @@ final class CallControllerNode: ASDisplayNode {
         guard self.debugNode == nil else {
             return
         }
+        
+        self.forceReportRating = true
         
         let debugNode = CallDebugNode(signal: self.debugInfo)
         debugNode.dismiss = { [weak self] in

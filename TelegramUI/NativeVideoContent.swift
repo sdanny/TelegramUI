@@ -52,15 +52,17 @@ final class NativeVideoContent: UniversalVideoContent {
     let imageReference: ImageMediaReference?
     let dimensions: CGSize
     let duration: Int32
-    let streamVideo: Bool
+    let streamVideo: MediaPlayerStreaming
     let loopVideo: Bool
     let enableSound: Bool
     let baseRate: Double
     let fetchAutomatically: Bool
+    let onlyFullSizeThumbnail: Bool
+    let continuePlayingWithoutSoundOnLostAudioSession: Bool
     let placeholderColor: UIColor
     let tempFilePath: String?
     
-    init(id: NativeVideoContentId, fileReference: FileMediaReference, imageReference: ImageMediaReference? = nil, streamVideo: Bool = false, loopVideo: Bool = false, enableSound: Bool = true, baseRate: Double = 1.0, fetchAutomatically: Bool = true, placeholderColor: UIColor = .white, tempFilePath: String? = nil) {
+    init(id: NativeVideoContentId, fileReference: FileMediaReference, imageReference: ImageMediaReference? = nil, streamVideo: MediaPlayerStreaming = .none, loopVideo: Bool = false, enableSound: Bool = true, baseRate: Double = 1.0, fetchAutomatically: Bool = true, onlyFullSizeThumbnail: Bool = false, continuePlayingWithoutSoundOnLostAudioSession: Bool = false, placeholderColor: UIColor = .white, tempFilePath: String? = nil) {
         self.id = id
         self.nativeId = id
         self.fileReference = fileReference
@@ -84,12 +86,14 @@ final class NativeVideoContent: UniversalVideoContent {
         self.enableSound = enableSound
         self.baseRate = baseRate
         self.fetchAutomatically = fetchAutomatically
+        self.onlyFullSizeThumbnail = onlyFullSizeThumbnail
+        self.continuePlayingWithoutSoundOnLostAudioSession = continuePlayingWithoutSoundOnLostAudioSession
         self.placeholderColor = placeholderColor
         self.tempFilePath = tempFilePath
     }
     
     func makeContentNode(postbox: Postbox, audioSession: ManagedAudioSession) -> UniversalVideoContentNode & ASDisplayNode {
-        return NativeVideoContentNode(postbox: postbox, audioSessionManager: audioSession, fileReference: self.fileReference, imageReference: self.imageReference, streamVideo: self.streamVideo, loopVideo: self.loopVideo, enableSound: self.enableSound, baseRate: self.baseRate, fetchAutomatically: self.fetchAutomatically, placeholderColor: self.placeholderColor, tempFilePath: self.tempFilePath)
+        return NativeVideoContentNode(postbox: postbox, audioSessionManager: audioSession, fileReference: self.fileReference, imageReference: self.imageReference, streamVideo: self.streamVideo, loopVideo: self.loopVideo, enableSound: self.enableSound, baseRate: self.baseRate, fetchAutomatically: self.fetchAutomatically, onlyFullSizeThumbnail: self.onlyFullSizeThumbnail, continuePlayingWithoutSoundOnLostAudioSession: self.continuePlayingWithoutSoundOnLostAudioSession, placeholderColor: self.placeholderColor, tempFilePath: self.tempFilePath)
     }
     
     func isEqual(to other: UniversalVideoContent) -> Bool {
@@ -139,14 +143,14 @@ private final class NativeVideoContentNode: ASDisplayNode, UniversalVideoContent
     
     private var validLayout: CGSize?
     
-    init(postbox: Postbox, audioSessionManager: ManagedAudioSession, fileReference: FileMediaReference, imageReference: ImageMediaReference?, streamVideo: Bool, loopVideo: Bool, enableSound: Bool, baseRate: Double, fetchAutomatically: Bool, placeholderColor: UIColor, tempFilePath: String?) {
+    init(postbox: Postbox, audioSessionManager: ManagedAudioSession, fileReference: FileMediaReference, imageReference: ImageMediaReference?, streamVideo: MediaPlayerStreaming, loopVideo: Bool, enableSound: Bool, baseRate: Double, fetchAutomatically: Bool, onlyFullSizeThumbnail: Bool, continuePlayingWithoutSoundOnLostAudioSession: Bool = false, placeholderColor: UIColor, tempFilePath: String?) {
         self.postbox = postbox
         self.fileReference = fileReference
         self.placeholderColor = placeholderColor
         
         self.imageNode = TransformImageNode()
         
-        self.player = MediaPlayer(audioSessionManager: audioSessionManager, postbox: postbox, resourceReference: fileReference.resourceReference(fileReference.media.resource), tempFilePath: tempFilePath, streamable: streamVideo, video: true, preferSoftwareDecoding: false, playAutomatically: false, enableSound: enableSound, baseRate: baseRate, fetchAutomatically: fetchAutomatically)
+        self.player = MediaPlayer(audioSessionManager: audioSessionManager, postbox: postbox, resourceReference: fileReference.resourceReference(fileReference.media.resource), tempFilePath: tempFilePath, streamable: streamVideo, video: true, preferSoftwareDecoding: false, playAutomatically: false, enableSound: enableSound, baseRate: baseRate, fetchAutomatically: fetchAutomatically, continuePlayingWithoutSoundOnLostAudioSession: continuePlayingWithoutSoundOnLostAudioSession)
         var actionAtEndImpl: (() -> Void)?
         if enableSound && !loopVideo {
             self.player.actionAtEnd = .action({
@@ -168,7 +172,7 @@ private final class NativeVideoContentNode: ASDisplayNode, UniversalVideoContent
             self?.performActionAtEnd()
         }
         
-        self.imageNode.setSignal(internalMediaGridMessageVideo(postbox: postbox, videoReference: fileReference, imageReference: imageReference) |> map { [weak self] getSize, getData in
+        self.imageNode.setSignal(internalMediaGridMessageVideo(postbox: postbox, videoReference: fileReference, imageReference: imageReference, onlyFullSize: onlyFullSizeThumbnail, autoFetchFullSizeThumbnail: fileReference.media.isInstantVideo) |> map { [weak self] getSize, getData in
             Queue.mainQueue().async {
                 if let strongSelf = self, strongSelf.dimensions == nil {
                     if let dimensions = getSize() {
@@ -187,7 +191,7 @@ private final class NativeVideoContentNode: ASDisplayNode, UniversalVideoContent
         self.addSubnode(self.playerNode)
         self._status.set(combineLatest(self.dimensionsPromise.get(), self.player.status)
         |> map { dimensions, status in
-            return MediaPlayerStatus(generationTimestamp: status.generationTimestamp, duration: status.duration, dimensions: dimensions, timestamp: status.timestamp, baseRate: status.baseRate, seekId: status.seekId, status: status.status)
+            return MediaPlayerStatus(generationTimestamp: status.generationTimestamp, duration: status.duration, dimensions: dimensions, timestamp: status.timestamp, baseRate: status.baseRate, seekId: status.seekId, status: status.status, soundEnabled: status.soundEnabled)
         })
         
         if let size = fileReference.media.size {
@@ -257,14 +261,41 @@ private final class NativeVideoContentNode: ASDisplayNode, UniversalVideoContent
         self.player.seek(timestamp: timestamp)
     }
     
-    func playOnceWithSound(playAndRecord: Bool) {
+    func playOnceWithSound(playAndRecord: Bool, seekToStart: MediaPlayerPlayOnceWithSoundSeek, actionAtEnd: MediaPlayerPlayOnceWithSoundActionAtEnd) {
         assert(Queue.mainQueue().isCurrent())
-        self.player.actionAtEnd = .loopDisablingSound({ [weak self] in
+        let action = { [weak self] in
             Queue.mainQueue().async {
                 self?.performActionAtEnd()
             }
-        })
-        self.player.playOnceWithSound(playAndRecord: playAndRecord)
+        }
+        switch actionAtEnd {
+            case .loop:
+                self.player.actionAtEnd = .loop({})
+            case .loopDisablingSound:
+                self.player.actionAtEnd = .loopDisablingSound(action)
+            case .stop:
+                self.player.actionAtEnd = .action(action)
+            case .repeatIfNeeded:
+                let _ = (self.player.status
+                |> deliverOnMainQueue
+                |> take(1)).start(next: { [weak self] status in
+                    guard let strongSelf = self else {
+                        return
+                    }
+                    if status.timestamp > status.duration * 0.1 {
+                        strongSelf.player.actionAtEnd = .loop({ [weak self] in
+                            guard let strongSelf = self else {
+                                return
+                            }
+                            strongSelf.player.actionAtEnd = .loopDisablingSound(action)
+                        })
+                    } else {
+                        strongSelf.player.actionAtEnd = .loopDisablingSound(action)
+                    }
+                })
+        }
+        
+        self.player.playOnceWithSound(playAndRecord: playAndRecord, seekToStart: seekToStart)
     }
     
     func setForceAudioToSpeaker(_ forceAudioToSpeaker: Bool) {
@@ -276,9 +307,26 @@ private final class NativeVideoContentNode: ASDisplayNode, UniversalVideoContent
         self.player.setBaseRate(baseRate)
     }
     
-    func continuePlayingWithoutSound() {
+    func continuePlayingWithoutSound(actionAtEnd: MediaPlayerPlayOnceWithSoundActionAtEnd) {
         assert(Queue.mainQueue().isCurrent())
+        let action = { [weak self] in
+            Queue.mainQueue().async {
+                self?.performActionAtEnd()
+            }
+        }
+        switch actionAtEnd {
+            case .loop:
+                self.player.actionAtEnd = .loop({})
+            case .loopDisablingSound, .repeatIfNeeded:
+                self.player.actionAtEnd = .loopDisablingSound(action)
+            case .stop:
+                self.player.actionAtEnd = .action(action)
+        }
         self.player.continuePlayingWithoutSound()
+    }
+    
+    func setContinuePlayingWithoutSoundOnLostAudioSession(_ value: Bool) {
+        self.player.setContinuePlayingWithoutSoundOnLostAudioSession(value)
     }
     
     func addPlaybackCompleted(_ f: @escaping () -> Void) -> Int {

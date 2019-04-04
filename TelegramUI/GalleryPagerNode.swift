@@ -58,6 +58,7 @@ final class GalleryPagerNode: ASDisplayNode, UIScrollViewDelegate {
     private var invalidatedItems = false
     var centralItemIndexOffsetUpdated: (([GalleryItem]?, Int, CGFloat)?) -> Void = { _ in }
     var toggleControlsVisibility: () -> Void = { }
+    var dismiss: () -> Void = { }
     var beginCustomDismiss: () -> Void = { }
     var completeCustomDismiss: () -> Void = { }
     var baseNavigationController: () -> NavigationController? = { return nil }
@@ -81,6 +82,15 @@ final class GalleryPagerNode: ASDisplayNode, UIScrollViewDelegate {
         self.scrollView.scrollsToTop = false
         self.scrollView.delaysContentTouches = false
         self.view.addSubview(self.scrollView)
+    }
+    
+    var isScrollEnabled: Bool {
+        get {
+            return self.scrollView.isScrollEnabled
+        }
+        set {
+            self.scrollView.isScrollEnabled = newValue
+        }
     }
     
     func containerLayoutUpdated(_ layout: ContainerViewLayout, navigationBarHeight: CGFloat, transition: ContainedViewLayoutTransition) {
@@ -223,6 +233,7 @@ final class GalleryPagerNode: ASDisplayNode, UIScrollViewDelegate {
     private func makeNodeForItem(at index: Int) -> GalleryItemNode {
         let node = self.items[index].node()
         node.toggleControlsVisibility = self.toggleControlsVisibility
+        node.dismiss = self.dismiss
         node.beginCustomDismiss = self.beginCustomDismiss
         node.completeCustomDismiss = self.completeCustomDismiss
         node.baseNavigationController = self.baseNavigationController
@@ -307,7 +318,11 @@ final class GalleryPagerNode: ASDisplayNode, UIScrollViewDelegate {
             }
             
             for i in 0 ..< self.itemNodes.count {
-                transition.updateFrame(node: self.itemNodes[i], frame: CGRect(origin: CGPoint(x: CGFloat(i) * self.scrollView.bounds.size.width + self.pageGap, y: 0.0), size: CGSize(width: self.scrollView.bounds.size.width - self.pageGap * 2.0, height: self.scrollView.bounds.size.height)))
+                let node = self.itemNodes[i]
+                transition.updateFrame(node: node, frame: CGRect(origin: CGPoint(x: CGFloat(i) * self.scrollView.bounds.size.width + self.pageGap, y: 0.0), size: CGSize(width: self.scrollView.bounds.size.width - self.pageGap * 2.0, height: self.scrollView.bounds.size.height)))
+                
+                let screenFrame = node.convert(node.bounds, to: self.supernode)
+                node.screenFrameUpdated(screenFrame)
             }
             
             if resetOffsetToCentralItem {
@@ -352,7 +367,11 @@ final class GalleryPagerNode: ASDisplayNode, UIScrollViewDelegate {
                 let previousCentralCandidateHorizontalOffset = self.scrollView.contentOffset.x - centralItemCandidateNode.frame.minX
                 
                 for i in 0 ..< self.itemNodes.count {
-                    transition.updateFrame(node: self.itemNodes[i], frame: CGRect(origin: CGPoint(x: CGFloat(i) * self.scrollView.bounds.size.width + self.pageGap, y: 0.0), size: CGSize(width: self.scrollView.bounds.size.width - self.pageGap * 2.0, height: self.scrollView.bounds.size.height)))
+                    let node = self.itemNodes[i]
+                    transition.updateFrame(node: node, frame: CGRect(origin: CGPoint(x: CGFloat(i) * self.scrollView.bounds.size.width + self.pageGap, y: 0.0), size: CGSize(width: self.scrollView.bounds.size.width - self.pageGap * 2.0, height: self.scrollView.bounds.size.height)))
+                    
+                    let screenFrame = node.convert(node.bounds, to: self.supernode)
+                    node.screenFrameUpdated(screenFrame)
                 }
                 
                 self.scrollView.contentOffset = CGPoint(x: centralItemCandidateNode.frame.minX + previousCentralCandidateHorizontalOffset, y: 0.0)

@@ -309,9 +309,9 @@ final class ListMessageSnippetItemNode: ListMessageNode {
             if currentIconImageRepresentation != iconImageReferenceAndRepresentation?.1 {
                 if let iconImageReferenceAndRepresentation = iconImageReferenceAndRepresentation {
                     if let imageReference = iconImageReferenceAndRepresentation.0.concrete(TelegramMediaImage.self) {
-                        updateIconImageSignal = chatWebpageSnippetPhoto(account: item.account, photoReference: imageReference)
+                        updateIconImageSignal = chatWebpageSnippetPhoto(account: item.context.account, photoReference: imageReference)
                     } else if let fileReference = iconImageReferenceAndRepresentation.0.concrete(TelegramMediaFile.self) {
-                        updateIconImageSignal = chatWebpageSnippetFile(account: item.account, fileReference: fileReference, representation: iconImageReferenceAndRepresentation.1)
+                        updateIconImageSignal = chatWebpageSnippetFile(account: item.context.account, fileReference: fileReference, representation: iconImageReferenceAndRepresentation.1)
                     }
                 } else {
                     updateIconImageSignal = .complete()
@@ -457,11 +457,11 @@ final class ListMessageSnippetItemNode: ListMessageNode {
         }
     }
     
-    override func transitionNode(id: MessageId, media: Media) -> (ASDisplayNode, () -> UIView?)? {
+    override func transitionNode(id: MessageId, media: Media) -> (ASDisplayNode, () -> (UIView?, UIView?))? {
         if let item = self.item, item.message.id == id, self.iconImageNode.supernode != nil {
             let iconImageNode = self.iconImageNode
             return (self.iconImageNode, { [weak iconImageNode] in
-                return iconImageNode?.view.snapshotContentTree(unhide: true)
+                return (iconImageNode?.view.snapshotContentTree(unhide: true), nil)
             })
         }
         return nil
@@ -484,10 +484,10 @@ final class ListMessageSnippetItemNode: ListMessageNode {
                 if content.instantPage != nil {
                     if websiteType(of: content) == .instagram {
                         if !item.controllerInteraction.openMessage(item.message, .default) {
-                            item.controllerInteraction.openInstantPage(item.message)
+                            item.controllerInteraction.openInstantPage(item.message, nil)
                         }
                     } else {
-                        item.controllerInteraction.openInstantPage(item.message)
+                        item.controllerInteraction.openInstantPage(item.message, nil)
                     }
                 } else {
                     if isTelegramMeLink(content.url) || !item.controllerInteraction.openMessage(item.message, .default) {
@@ -586,7 +586,7 @@ final class ListMessageSnippetItemNode: ListMessageNode {
                 if let current = self.linkHighlightingNode {
                     linkHighlightingNode = current
                 } else {
-                    linkHighlightingNode = LinkHighlightingNode(color: item.message.effectivelyIncoming(item.account.peerId) ? item.theme.chat.bubble.incomingLinkHighlightColor : item.theme.chat.bubble.outgoingLinkHighlightColor)
+                    linkHighlightingNode = LinkHighlightingNode(color: item.message.effectivelyIncoming(item.context.account.peerId) ? item.theme.chat.bubble.incomingLinkHighlightColor : item.theme.chat.bubble.outgoingLinkHighlightColor)
                     self.linkHighlightingNode = linkHighlightingNode
                     self.insertSubnode(linkHighlightingNode, belowSubnode: self.linkNode)
                 }

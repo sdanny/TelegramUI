@@ -56,6 +56,18 @@ public enum PresentationThemeReference: PostboxCoding, Equatable {
                 }
         }
     }
+    
+    var index: Int64 {
+        let namespace: Int32
+        let id: Int32
+        switch self {
+            case let .builtin(reference):
+                namespace = 0
+                id = reference.rawValue
+        }
+        
+        return (Int64(namespace) << 32) | Int64(bitPattern: UInt64(UInt32(bitPattern: id)))
+    }
 }
 
 public enum PresentationFontSize: Int32 {
@@ -156,41 +168,59 @@ public struct AutomaticThemeSwitchSetting: PostboxCoding, Equatable {
 
 public struct PresentationThemeSettings: PreferencesEntry {
     public var chatWallpaper: TelegramWallpaper
-    public var chatWallpaperOptions: WallpaperPresentationOptions
     public var theme: PresentationThemeReference
     public var themeAccentColor: Int32?
+    public var themeSpecificChatWallpapers: Dictionary<Int64, TelegramWallpaper>
     public var fontSize: PresentationFontSize
     public var automaticThemeSwitchSetting: AutomaticThemeSwitchSetting
     public var disableAnimations: Bool
     
-    public var relatedResources: [MediaResourceId] {
+    private func wallpaperResources(_ wallpaper: TelegramWallpaper) -> [MediaResourceId] {
         switch self.chatWallpaper {
-            case let .image(representations):
-                return representations.map({ $0.resource.id })
+            case let .image(representations, _):
+                return representations.map { $0.resource.id }
+            case let .file(_, _, _, _, _, _, _, file, _):
+                var resources: [MediaResourceId] = []
+                resources.append(file.resource.id)
+                resources.append(contentsOf: file.previewRepresentations.map { $0.resource.id })
+                return resources
             default:
                 return []
         }
     }
     
-    public static var defaultSettings: PresentationThemeSettings {
-        return PresentationThemeSettings(chatWallpaper: .builtin, chatWallpaperOptions: [], theme: .builtin(.dayClassic), themeAccentColor: nil, fontSize: .regular, automaticThemeSwitchSetting: AutomaticThemeSwitchSetting(trigger: .none, theme: .nightAccent), disableAnimations: true)
+    public var relatedResources: [MediaResourceId] {
+        var resources: [MediaResourceId] = []
+        resources.append(contentsOf: wallpaperResources(self.chatWallpaper))
+        for (_, chatWallpaper) in self.themeSpecificChatWallpapers {
+            resources.append(contentsOf: wallpaperResources(chatWallpaper))
+        }
+        return resources
     }
     
-    public init(chatWallpaper: TelegramWallpaper, chatWallpaperOptions: WallpaperPresentationOptions, theme: PresentationThemeReference, themeAccentColor: Int32?, fontSize: PresentationFontSize, automaticThemeSwitchSetting: AutomaticThemeSwitchSetting, disableAnimations: Bool) {
+    public static var defaultSettings: PresentationThemeSettings {
+        return PresentationThemeSettings(chatWallpaper: .builtin(WallpaperSettings()), theme: .builtin(.dayClassic), themeAccentColor: nil, themeSpecificChatWallpapers: [:], fontSize: .regular, automaticThemeSwitchSetting: AutomaticThemeSwitchSetting(trigger: .none, theme: .nightAccent), disableAnimations: true)
+    }
+    
+    public init(chatWallpaper: TelegramWallpaper, theme: PresentationThemeReference, themeAccentColor: Int32?, themeSpecificChatWallpapers: Dictionary<Int64, TelegramWallpaper>, fontSize: PresentationFontSize, automaticThemeSwitchSetting: AutomaticThemeSwitchSetting, disableAnimations: Bool) {
         self.chatWallpaper = chatWallpaper
-        self.chatWallpaperOptions = chatWallpaperOptions
         self.theme = theme
         self.themeAccentColor = themeAccentColor
+        self.themeSpecificChatWallpapers = themeSpecificChatWallpapers
         self.fontSize = fontSize
         self.automaticThemeSwitchSetting = automaticThemeSwitchSetting
         self.disableAnimations = disableAnimations
     }
     
     public init(decoder: PostboxDecoder) {
-        self.chatWallpaper = (decoder.decodeObjectForKey("w", decoder: { TelegramWallpaper(decoder: $0) }) as? TelegramWallpaper) ?? .builtin
-        self.chatWallpaperOptions = WallpaperPresentationOptions(rawValue: decoder.decodeInt32ForKey("o", orElse: 0))
+        self.chatWallpaper = (decoder.decodeObjectForKey("w", decoder: { TelegramWallpaper(decoder: $0) }) as? TelegramWallpaper) ?? .builtin(WallpaperSettings())
         self.theme = decoder.decodeObjectForKey("t", decoder: { PresentationThemeReference(decoder: $0) }) as! PresentationThemeReference
         self.themeAccentColor = decoder.decodeOptionalInt32ForKey("themeAccentColor")
+        self.themeSpecificChatWallpapers = decoder.decodeObjectDictionaryForKey("themeSpecificChatWallpapers", keyDecoder: { decoder in
+            return decoder.decodeInt64ForKey("k", orElse: 0)
+        }, valueDecoder: { decoder in
+            return TelegramWallpaper(decoder: decoder)
+        })
         self.fontSize = PresentationFontSize(rawValue: decoder.decodeInt32ForKey("f", orElse: PresentationFontSize.regular.rawValue)) ?? .regular
         self.automaticThemeSwitchSetting = (decoder.decodeObjectForKey("automaticThemeSwitchSetting", decoder: { AutomaticThemeSwitchSetting(decoder: $0) }) as? AutomaticThemeSwitchSetting) ?? AutomaticThemeSwitchSetting(trigger: .none, theme: .nightAccent)
         self.disableAnimations = decoder.decodeBoolForKey("disableAnimations", orElse: true)
@@ -198,13 +228,15 @@ public struct PresentationThemeSettings: PreferencesEntry {
     
     public func encode(_ encoder: PostboxEncoder) {
         encoder.encodeObject(self.chatWallpaper, forKey: "w")
-        encoder.encodeInt32(self.chatWallpaperOptions.rawValue, forKey: "o")
         encoder.encodeObject(self.theme, forKey: "t")
         if let themeAccentColor = self.themeAccentColor {
             encoder.encodeInt32(themeAccentColor, forKey: "themeAccentColor")
         } else {
             encoder.encodeNil(forKey: "themeAccentColor")
         }
+        encoder.encodeObjectDictionary(self.themeSpecificChatWallpapers, forKey: "themeSpecificChatWallpapers", keyEncoder: { key, encoder in
+            encoder.encodeInt64(key, forKey: "k")
+        })
         encoder.encodeInt32(self.fontSize.rawValue, forKey: "f")
         encoder.encodeObject(self.automaticThemeSwitchSetting, forKey: "automaticThemeSwitchSetting")
         encoder.encodeBool(self.disableAnimations, forKey: "disableAnimations")
@@ -219,13 +251,13 @@ public struct PresentationThemeSettings: PreferencesEntry {
     }
     
     public static func ==(lhs: PresentationThemeSettings, rhs: PresentationThemeSettings) -> Bool {
-        return lhs.chatWallpaper == rhs.chatWallpaper && lhs.chatWallpaperOptions == rhs.chatWallpaperOptions && lhs.theme == rhs.theme && lhs.themeAccentColor == rhs.themeAccentColor && lhs.fontSize == rhs.fontSize && lhs.automaticThemeSwitchSetting == rhs.automaticThemeSwitchSetting && lhs.disableAnimations == rhs.disableAnimations
+        return lhs.chatWallpaper == rhs.chatWallpaper && lhs.theme == rhs.theme && lhs.themeAccentColor == rhs.themeAccentColor && lhs.themeSpecificChatWallpapers == rhs.themeSpecificChatWallpapers && lhs.fontSize == rhs.fontSize && lhs.automaticThemeSwitchSetting == rhs.automaticThemeSwitchSetting && lhs.disableAnimations == rhs.disableAnimations
     }
 }
 
-public func updatePresentationThemeSettingsInteractively(postbox: Postbox, _ f: @escaping (PresentationThemeSettings) -> PresentationThemeSettings) -> Signal<Void, NoError> {
-    return postbox.transaction { transaction -> Void in
-        transaction.updatePreferencesEntry(key: ApplicationSpecificPreferencesKeys.presentationThemeSettings, { entry in
+public func updatePresentationThemeSettingsInteractively(accountManager: AccountManager, _ f: @escaping (PresentationThemeSettings) -> PresentationThemeSettings) -> Signal<Void, NoError> {
+    return accountManager.transaction { transaction -> Void in
+        transaction.updateSharedData(ApplicationSpecificSharedDataKeys.presentationThemeSettings, { entry in
             let currentSettings: PresentationThemeSettings
             if let entry = entry as? PresentationThemeSettings {
                 currentSettings = entry

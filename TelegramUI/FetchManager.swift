@@ -27,6 +27,65 @@ private struct FetchManagerLocationEntryId: Hashable {
     }
 }
 
+enum FetchManagerForegroundDirection {
+    case toEarlier
+    case toLater
+}
+
+enum FetchManagerPriority: Comparable {
+    case userInitiated
+    case foregroundPrefetch(direction: FetchManagerForegroundDirection, localOrder: MessageIndex)
+    case backgroundPrefetch(locationOrder: HistoryPreloadIndex, localOrder: MessageIndex)
+    
+    static func <(lhs: FetchManagerPriority, rhs: FetchManagerPriority) -> Bool {
+        switch lhs {
+            case .userInitiated:
+                switch rhs {
+                    case .userInitiated:
+                        return false
+                    case .foregroundPrefetch:
+                        return true
+                    case .backgroundPrefetch:
+                        return true
+                }
+            case let .foregroundPrefetch(lhsDirection, lhsLocalOrder):
+                switch rhs {
+                    case .userInitiated:
+                        return false
+                    case let .foregroundPrefetch(rhsDirection, rhsLocalOrder):
+                        if lhsDirection == rhsDirection {
+                            switch lhsDirection {
+                                case .toEarlier:
+                                    return lhsLocalOrder > rhsLocalOrder
+                                case .toLater:
+                                    return lhsLocalOrder < rhsLocalOrder
+                            }
+                        } else {
+                            if lhsDirection == .toEarlier {
+                                return true
+                            } else {
+                                return false
+                            }
+                        }
+                    case .backgroundPrefetch:
+                        return true
+                }
+            case let .backgroundPrefetch(lhsLocationOrder, lhsLocalOrder):
+                switch rhs {
+                    case .userInitiated:
+                        return false
+                    case .foregroundPrefetch:
+                        return false
+                    case let .backgroundPrefetch(rhsLocationOrder, rhsLocalOrder):
+                        if lhsLocationOrder != rhsLocationOrder {
+                            return lhsLocationOrder < rhsLocationOrder
+                        }
+                        return lhsLocalOrder > rhsLocalOrder
+                }
+        }
+    }
+}
+
 private final class FetchManagerLocationEntry {
     let id: FetchManagerLocationEntryId
     let episode: Int32
@@ -35,14 +94,23 @@ private final class FetchManagerLocationEntry {
     let statsCategory: MediaResourceStatsCategory
     
     var userInitiated: Bool = false
-    var storeToDownloadsPeerType: AutomaticMediaDownloadPeerType?
-    var referenceCount: Int32 = 0
+    var storeToDownloadsPeerType: MediaAutoDownloadPeerType?
+    let references = Bag<FetchManagerPriority>()
+    let ranges = Bag<IndexSet>()
     var elevatedPriorityReferenceCount: Int32 = 0
     var userInitiatedPriorityIndices: [Int32] = []
     
+    var combinedRanges: IndexSet {
+        var result = IndexSet()
+        for range in self.ranges.copyItems() {
+            result.formUnion(range)
+        }
+        return result
+    }
+    
     var priorityKey: FetchManagerPriorityKey? {
-        if self.referenceCount > 0 || self.userInitiated {
-            return FetchManagerPriorityKey(locationKey: self.id.locationKey, hasElevatedPriority: self.elevatedPriorityReferenceCount > 0, userInitiatedPriority: userInitiatedPriorityIndices.last)
+        if !self.references.isEmpty || self.userInitiated {
+            return FetchManagerPriorityKey(locationKey: self.id.locationKey, hasElevatedPriority: self.elevatedPriorityReferenceCount > 0, userInitiatedPriority: userInitiatedPriorityIndices.last, topReference: self.references.copyItems().max())
         } else {
             return nil
         }
@@ -59,6 +127,7 @@ private final class FetchManagerLocationEntry {
 
 private final class FetchManagerActiveContext {
     let userInitiated: Bool
+    var ranges = IndexSet()
     var disposable: Disposable?
     
     init(userInitiated: Bool) {
@@ -179,12 +248,26 @@ private final class FetchManagerCategoryContext {
             }
         }
         
+        let ranges = entry.combinedRanges
+        
         if let activeContext = self.activeContexts[id] {
-            if activeContext.disposable == nil {
+            if activeContext.disposable == nil || activeContext.ranges != ranges {
                 if let entry = self.entries[id] {
+                    activeContext.ranges = ranges
                     let entryCompleted = self.entryCompleted
                     let storeManager = self.storeManager
-                    activeContext.disposable = (fetchedMediaResource(postbox: self.postbox, reference: entry.resourceReference, statsCategory: entry.statsCategory, reportResultStatus: true, continueInBackground: entry.userInitiated)
+                    let parsedRanges: [(Range<Int>, MediaBoxFetchPriority)]?
+                    if ranges.count == 1 && ranges.min() == 0 && ranges.max() == Int(Int32.max) {
+                        parsedRanges = nil
+                    } else {
+                        var resultRanges: [(Range<Int>, MediaBoxFetchPriority)] = []
+                        for range in ranges.rangeView {
+                            resultRanges.append((range, .default))
+                        }
+                        parsedRanges = resultRanges
+                    }
+                    activeContext.disposable?.dispose()
+                    activeContext.disposable = (fetchedMediaResource(postbox: self.postbox, reference: entry.resourceReference, ranges: parsedRanges, statsCategory: entry.statsCategory, reportResultStatus: true, continueInBackground: entry.userInitiated)
                     |> mapToSignal { type -> Signal<FetchResourceSourceType, FetchResourceError> in
                         if let storeManager = storeManager, let mediaReference = entry.mediaReference, case .remote = type, let peerType = entry.storeToDownloadsPeerType {
                             return storeDownloadedMedia(storeManager: storeManager, media: mediaReference, peerType: peerType)
@@ -207,7 +290,17 @@ private final class FetchManagerCategoryContext {
         
         if (previousPriorityKey != nil) != (updatedPriorityKey != nil) {
             if let statusContext = self.statusContexts[id] {
-                if updatedPriorityKey != nil {
+                var hasForegroundPriorityKey = false
+                if let updatedPriorityKey = updatedPriorityKey, let topReference = updatedPriorityKey.topReference {
+                    switch topReference {
+                        case .userInitiated:
+                            hasForegroundPriorityKey = true
+                        default:
+                            hasForegroundPriorityKey = false
+                    }
+                }
+                
+                if hasForegroundPriorityKey {
                     if !statusContext.hasEntry {
                         let previousStatus = statusContext.combinedStatus
                         statusContext.hasEntry = true
@@ -228,8 +321,6 @@ private final class FetchManagerCategoryContext {
                                 f(combinedStatus)
                             }
                         }
-                    } else {
-                        assertionFailure()
                     }
                 }
             }
@@ -260,29 +351,83 @@ private final class FetchManagerCategoryContext {
             self.topEntryIdAndPriority = topEntryIdAndPriority
         }
         
-        if let topEntryId = self.topEntryIdAndPriority?.0, self.activeContexts[topEntryId] == nil {
+        if let topEntryId = self.topEntryIdAndPriority?.0 {
             if let entry = self.entries[topEntryId] {
-                let activeContext = FetchManagerActiveContext(userInitiated: entry.userInitiated)
-                self.activeContexts[topEntryId] = activeContext
-                let entryCompleted = self.entryCompleted
-                let storeManager = self.storeManager
-                activeContext.disposable = (fetchedMediaResource(postbox: self.postbox, reference: entry.resourceReference, statsCategory: entry.statsCategory, reportResultStatus: true, continueInBackground: entry.userInitiated)
-                |> mapToSignal { type -> Signal<FetchResourceSourceType, FetchResourceError> in
-                    if let storeManager = storeManager, let mediaReference = entry.mediaReference, case .remote = type, let peerType = entry.storeToDownloadsPeerType {
-                        return storeDownloadedMedia(storeManager: storeManager, media: mediaReference, peerType: peerType)
-                        |> introduceError(FetchResourceError.self)
-                        |> mapToSignal { _ -> Signal<FetchResourceSourceType, FetchResourceError> in
-                            return .complete()
-                        }
-                        |> then(.single(type))
+                let ranges = entry.combinedRanges
+                
+                let parsedRanges: [(Range<Int>, MediaBoxFetchPriority)]?
+                
+                var count = 0
+                var isCompleteRange = false
+                var isVideoPreload = false
+                for range in ranges.rangeView {
+                    count += 1
+                    if range.lowerBound == 0 && range.upperBound == Int(Int32.max) {
+                        isCompleteRange = true
                     }
-                    return .single(type)
                 }
-                |> deliverOnMainQueue).start(next: { _ in
-                    entryCompleted(topEntryId)
+                
+                if count == 2, let range = ranges.rangeView.first, range.lowerBound == 0 && range.upperBound == 2 * 1024 * 1024 {
+                    isVideoPreload = true
+                }
+                
+                if count == 1 && isCompleteRange {
+                    parsedRanges = nil
+                } else {
+                    var resultRanges: [(Range<Int>, MediaBoxFetchPriority)] = []
+                    for range in ranges.rangeView {
+                        resultRanges.append((range, .default))
+                    }
+                    parsedRanges = resultRanges
+                }
+                
+                let activeContext: FetchManagerActiveContext
+                var restart = false
+                if let current = self.activeContexts[topEntryId] {
+                    activeContext = current
+                    restart = activeContext.ranges != ranges
+                } else {
+                    activeContext = FetchManagerActiveContext(userInitiated: entry.userInitiated)
+                    self.activeContexts[topEntryId] = activeContext
+                    restart = true
+                }
+                
+                if restart {
+                    activeContext.ranges = ranges
                     
-                })
-                return true
+                    let entryCompleted = self.entryCompleted
+                    let storeManager = self.storeManager
+                    activeContext.disposable?.dispose()
+                    if isVideoPreload {
+                        activeContext.disposable = (preloadVideoResource(postbox: self.postbox, resourceReference: entry.resourceReference, duration: 4.0)
+                        |> introduceError(FetchResourceError.self)
+                        |> map { _ -> FetchResourceSourceType in return .local }
+                        |> then(.single(.local))
+                        |> deliverOnMainQueue).start(next: { _ in
+                            entryCompleted(topEntryId)
+                        })
+                    } else if ranges.isEmpty {
+                    } else {
+                        activeContext.disposable = (fetchedMediaResource(postbox: self.postbox, reference: entry.resourceReference, ranges: parsedRanges, statsCategory: entry.statsCategory, reportResultStatus: true, continueInBackground: entry.userInitiated)
+                        |> mapToSignal { type -> Signal<FetchResourceSourceType, FetchResourceError> in
+                            if let storeManager = storeManager, let mediaReference = entry.mediaReference, case .remote = type, let peerType = entry.storeToDownloadsPeerType {
+                                return storeDownloadedMedia(storeManager: storeManager, media: mediaReference, peerType: peerType)
+                                |> introduceError(FetchResourceError.self)
+                                |> mapToSignal { _ -> Signal<FetchResourceSourceType, FetchResourceError> in
+                                    return .complete()
+                                }
+                                |> then(.single(type))
+                            }
+                            return .single(type)
+                        }
+                        |> deliverOnMainQueue).start(next: { _ in
+                            entryCompleted(topEntryId)
+                        })
+                    }
+                    return true
+                } else {
+                    return false
+                }
             } else {
                 assertionFailure()
                 return false
@@ -315,8 +460,6 @@ private final class FetchManagerCategoryContext {
                             f(combinedStatus)
                         }
                     }
-                } else {
-                    assertionFailure()
                 }
             }
         }
@@ -440,12 +583,15 @@ public final class FetchManager {
         }
     }
     
-    func interactivelyFetched(category: FetchManagerCategory, location: FetchManagerLocation, locationKey: FetchManagerLocationKey, mediaReference: AnyMediaReference?, resourceReference: MediaResourceReference, statsCategory: MediaResourceStatsCategory, elevatedPriority: Bool, userInitiated: Bool, storeToDownloadsPeerType: AutomaticMediaDownloadPeerType? = nil) -> Signal<Void, NoError> {
+    func interactivelyFetched(category: FetchManagerCategory, location: FetchManagerLocation, locationKey: FetchManagerLocationKey, mediaReference: AnyMediaReference?, resourceReference: MediaResourceReference, ranges: IndexSet = IndexSet(integersIn: 0 ..< Int(Int32.max) as Range<Int>), statsCategory: MediaResourceStatsCategory, elevatedPriority: Bool, userInitiated: Bool, priority: FetchManagerPriority = .userInitiated, storeToDownloadsPeerType: MediaAutoDownloadPeerType? = nil) -> Signal<Void, NoError> {
         let queue = self.queue
         return Signal { [weak self] subscriber in
             if let strongSelf = self {
                 var assignedEpisode: Int32?
                 var assignedUserInitiatedIndex: Int32?
+                
+                var assignedReferenceIndex: Int?
+                var assignedRangeIndex: Int?
                 
                 strongSelf.withCategoryContext(category, { context in
                     context.withEntry(id: FetchManagerLocationEntryId(location: location, resourceId: resourceReference.resource.id, locationKey: locationKey), takeNew: { return (mediaReference, resourceReference, statsCategory, strongSelf.takeNextEpisodeId()) }, { entry in
@@ -456,10 +602,11 @@ public final class FetchManager {
                         if let peerType = storeToDownloadsPeerType {
                             entry.storeToDownloadsPeerType = peerType
                         }
-                        entry.referenceCount += 1
+                        assignedReferenceIndex = entry.references.add(priority)
                         if elevatedPriority {
                             entry.elevatedPriorityReferenceCount += 1
                         }
+                        assignedRangeIndex = entry.ranges.add(ranges)
                         if userInitiated {
                             let userInitiatedIndex = strongSelf.takeNextUserInitiatedIndex()
                             assignedUserInitiatedIndex = userInitiatedIndex
@@ -469,14 +616,25 @@ public final class FetchManager {
                     })
                 })
                 
+                assert(assignedReferenceIndex != nil)
+                assert(assignedRangeIndex != nil)
+                
                 return ActionDisposable {
                     queue.async {
                         if let strongSelf = self {
                             strongSelf.withCategoryContext(category, { context in
                                 context.withEntry(id: FetchManagerLocationEntryId(location: location, resourceId: resourceReference.resource.id, locationKey: locationKey), takeNew: nil, { entry in
                                     if entry.episode == assignedEpisode {
-                                        entry.referenceCount -= 1
-                                        assert(entry.referenceCount >= 0)
+                                        if let assignedReferenceIndex = assignedReferenceIndex {
+                                            let previousCount = entry.references.copyItems().count
+                                            entry.references.remove(assignedReferenceIndex)
+                                            assert(entry.references.copyItems().count < previousCount)
+                                        }
+                                        if let assignedRangeIndex = assignedRangeIndex {
+                                            let previousCount = entry.ranges.copyItems().count
+                                            entry.ranges.remove(assignedRangeIndex)
+                                            assert(entry.ranges.copyItems().count < previousCount)
+                                        }
                                         if elevatedPriority {
                                             entry.elevatedPriorityReferenceCount -= 1
                                             assert(entry.elevatedPriorityReferenceCount >= 0)

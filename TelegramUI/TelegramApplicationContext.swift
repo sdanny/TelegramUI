@@ -91,6 +91,12 @@ public final class TelegramApplicationContext {
         return self._automaticMediaDownloadSettings.get()
     }
     
+    public let currentLimitsConfiguration: Atomic<LimitsConfiguration>
+    private let _limitsConfiguration = Promise<LimitsConfiguration>()
+    public var limitsConfiguration: Signal<LimitsConfiguration, NoError> {
+        return self._limitsConfiguration.get()
+    }
+    
     public let currentMediaInputSettings: Atomic<MediaInputSettings>
     private var mediaInputSettingsDisposable: Disposable?
     
@@ -110,6 +116,8 @@ public final class TelegramApplicationContext {
     private var hasOngoingCallDisposable: Disposable?
     
     public var watchManager: WatchManager?
+    
+    let wallpaperUploadManager: WallpaperUploadManager?
     
     private var immediateExperimentalUISettingsValue = Atomic<ExperimentalUISettings>(value: ExperimentalUISettings.defaultSettings)
     public var immediateExperimentalUISettings: ExperimentalUISettings {
@@ -150,19 +158,23 @@ public final class TelegramApplicationContext {
         self.fetchManager = FetchManager(postbox: postbox, storeManager: self.mediaManager?.downloadedMediaStoreManager)
         self.currentPresentationData = Atomic(value: initialPresentationDataAndSettings.presentationData)
         self.currentAutomaticMediaDownloadSettings = Atomic(value: initialPresentationDataAndSettings.automaticMediaDownloadSettings)
+        self.currentLimitsConfiguration = Atomic(value: initialPresentationDataAndSettings.limitsConfiguration)
         self.currentMediaInputSettings = Atomic(value: initialPresentationDataAndSettings.mediaInputSettings)
        
         if let account = account {
             self._presentationData.set(.single(initialPresentationDataAndSettings.presentationData)
             |> then(updatedPresentationData(postbox: account.postbox, applicationBindings: applicationBindings)))
             self._automaticMediaDownloadSettings.set(.single(initialPresentationDataAndSettings.automaticMediaDownloadSettings) |> then(updatedAutomaticMediaDownloadSettings(postbox: account.postbox)))
+            
+            self.wallpaperUploadManager = WallpaperUploadManager(account: account, presentationData: self._presentationData.get())
         } else {
             self._presentationData.set(.single(initialPresentationDataAndSettings.presentationData))
             self._automaticMediaDownloadSettings.set(.single(initialPresentationDataAndSettings.automaticMediaDownloadSettings))
+            
+            self.wallpaperUploadManager = nil
         }
         
         self.currentInAppNotificationSettings = Atomic(value: initialPresentationDataAndSettings.inAppNotificationSettings)
-        
         
         let inAppPreferencesKey = PostboxViewKey.preferences(keys: Set([ApplicationSpecificPreferencesKeys.inAppNotificationSettings]))
         inAppNotificationSettingsDisposable = (postbox.combinedView(keys: [inAppPreferencesKey]) |> deliverOnMainQueue).start(next: { [weak self] views in

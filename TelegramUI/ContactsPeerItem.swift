@@ -281,8 +281,6 @@ class ContactsPeerItem: ListViewItem {
     }
 }
 
-private let separatorHeight = 1.0 / UIScreen.main.scale
-
 private let avatarFont: UIFont = UIFont(name: ".SFCompactRounded-Semibold", size: 16.0)!
 
 class ContactsPeerItemNode: ItemListRevealOptionsItemNode {
@@ -336,6 +334,8 @@ class ContactsPeerItemNode: ItemListRevealOptionsItemNode {
         self.statusNode = TextNode()
         
         super.init(layerBacked: false, dynamicBounce: false, rotated: false, seeThrough: false)
+        
+        self.isAccessibilityElement = true
         
         self.addSubnode(self.backgroundNode)
         self.addSubnode(self.separatorNode)
@@ -622,6 +622,9 @@ class ContactsPeerItemNode: ItemListRevealOptionsItemNode {
                         if let strongSelf = strongSelf {
                             strongSelf.layoutParams = (item, params, first, last, firstWithHeader)
                             
+                            strongSelf.accessibilityLabel = titleAttributedString?.string
+                            strongSelf.accessibilityValue = statusAttributedString?.string
+                            
                             switch item.peer {
                                 case let .peer(peer, _):
                                     if let peer = peer {
@@ -629,7 +632,7 @@ class ContactsPeerItemNode: ItemListRevealOptionsItemNode {
                                         if peer.id == item.account.peerId, case .generalSearch = item.peerMode {
                                             overrideImage = .savedMessagesIcon
                                         }
-                                        strongSelf.avatarNode.setPeer(account: item.account, peer: peer, overrideImage: overrideImage, emptyColor: item.theme.list.mediaPlaceholderColor, synchronousLoad: synchronousLoads)
+                                        strongSelf.avatarNode.setPeer(account: item.account, theme: item.theme, peer: peer, overrideImage: overrideImage, emptyColor: item.theme.list.mediaPlaceholderColor, synchronousLoad: synchronousLoads)
                                     }
                                 case let .deviceContact(_, contact):
                                     let letters: [String]
@@ -770,6 +773,8 @@ class ContactsPeerItemNode: ItemListRevealOptionsItemNode {
                                 selectionNode.removeFromSupernode()
                                 strongSelf.selectionNode = nil
                             }
+                            
+                            let separatorHeight = UIScreenPixel
                             
                             let topHighlightInset: CGFloat = (first || !nodeLayout.insets.top.isZero) ? 0.0 : separatorHeight
                             strongSelf.backgroundNode.frame = CGRect(origin: CGPoint(x: 0.0, y: 0.0), size: CGSize(width: nodeLayout.contentSize.width, height: nodeLayout.contentSize.height))

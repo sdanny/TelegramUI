@@ -54,7 +54,7 @@ final class ChatMessageInvoiceBubbleContentNode: ChatMessageBubbleContentNode {
                 text = invoice.description
                 
                 if let image = invoice.photo {
-                    automaticDownloadSettings = AutomaticMediaDownloadSettings.defaultSettings
+                    automaticDownloadSettings = MediaAutoDownloadSettings.defaultSettings
                     mediaAndFlags = (image, [.preferMediaBeforeText])
                 } else {
                     let invoiceLabel = item.presentationData.strings.Message_InvoiceLabel
@@ -70,7 +70,7 @@ final class ChatMessageInvoiceBubbleContentNode: ChatMessageBubbleContentNode {
                 }
             }
             
-            let (initialWidth, continueLayout) = contentNodeLayout(item.presentationData, automaticDownloadSettings, item.associatedData, item.account, item.controllerInteraction, item.message, item.read, title, subtitle, text, nil, mediaAndFlags, nil, nil, false, layoutConstants, constrainedSize)
+            let (initialWidth, continueLayout) = contentNodeLayout(item.presentationData, automaticDownloadSettings, item.associatedData, item.context, item.controllerInteraction, item.message, item.read, title, subtitle, text, nil, mediaAndFlags, nil, nil, nil, false, layoutConstants, constrainedSize)
             
             let contentProperties = ChatMessageBubbleContentProperties(hidesSimpleAuthorHeader: false, headerSpacing: 8.0, hidesBackground: .never, forceFullCorners: false, forceAlignment: .none)
             
@@ -126,7 +126,7 @@ final class ChatMessageInvoiceBubbleContentNode: ChatMessageBubbleContentNode {
         return self.contentNode.updateHiddenMedia(media)
     }
     
-    override func transitionNode(messageId: MessageId, media: Media) -> (ASDisplayNode, () -> UIView?)? {
+    override func transitionNode(messageId: MessageId, media: Media) -> (ASDisplayNode, () -> (UIView?, UIView?))? {
         if self.item?.message.id != messageId {
             return nil
         }

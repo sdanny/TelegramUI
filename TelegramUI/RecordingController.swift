@@ -24,7 +24,7 @@ public class RecordingController: NSObject, AVAudioPlayerDelegate {
     
     private let playerStatusPromise = Promise<MediaPlayerStatus>(.zero)
     
-    private let account: Account
+    private let context: AccountContext
     private var presentationData: PresentationData
 
     private(set) var callId: Int64?
@@ -40,14 +40,14 @@ public class RecordingController: NSObject, AVAudioPlayerDelegate {
         fatalError("init(coder:) has not been implemented")
     }
     
-    public init(account: Account) {
-        self.account = account
-        self.presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+    public init(context: AccountContext) {
+        self.context = context
+        self.presentationData = context.sharedContext.currentPresentationData.with { $0 }
         
         super.init()
         
         let interaction = RecordingNodeInteraction(switchPlayingState: switchPlayingState, stop: stop, seek: seek)
-        self.controllerNode = RecordingControllerNode(account: account, presentationData: presentationData, interaction: interaction)
+        self.controllerNode = RecordingControllerNode(account: context.account, presentationData: presentationData, interaction: interaction)
         self._ready.set(.single(true))
     }
     
@@ -119,7 +119,7 @@ public class RecordingController: NSObject, AVAudioPlayerDelegate {
         guard let player = player else { return }
         let timestamp = player.currentTime
         let isPlaying: MediaPlayerPlaybackStatus = player.isPlaying ? .playing : .paused
-        let status = MediaPlayerStatus(generationTimestamp: 0, duration: player.duration, dimensions: .zero, timestamp: timestamp, baseRate: 1.0, seekId: seekId, status: isPlaying)
+        let status = MediaPlayerStatus(generationTimestamp: 0, duration: player.duration, dimensions: .zero, timestamp: timestamp, baseRate: 1.0, seekId: seekId, status: isPlaying, soundEnabled: true)
         playerStatusPromise.set(.single(status))
     }
     
@@ -132,5 +132,5 @@ public class RecordingController: NSObject, AVAudioPlayerDelegate {
 
 extension MediaPlayerStatus {
     static let zero = MediaPlayerStatus.init(generationTimestamp: 0, duration: 0, dimensions: .zero,
-                                             timestamp: 0, baseRate: 0, seekId: 0, status: .paused)
+                                             timestamp: 0, baseRate: 0, seekId: 0, status: .paused, soundEnabled: true)
 }

@@ -13,28 +13,34 @@ private enum InnerState: Equatable {
     case authorized
 }
 
-public final class AuthorizationSequenceController: NavigationController {
-    static func navigationBarTheme(_ theme: AuthorizationTheme) -> NavigationBarTheme {
-        return NavigationBarTheme(buttonColor: theme.accentColor, disabledButtonColor: UIColor(rgb: 0xd0d0d0), primaryTextColor: .black, backgroundColor: .clear, separatorColor: .clear, badgeBackgroundColor: .clear, badgeStrokeColor: .clear, badgeTextColor: .clear)
+public final class AuthorizationSequenceController: NavigationController, MFMailComposeViewControllerDelegate {
+    static func navigationBarTheme(_ theme: PresentationTheme) -> NavigationBarTheme {
+        return NavigationBarTheme(buttonColor: theme.rootController.navigationBar.buttonColor, disabledButtonColor: theme.rootController.navigationBar.disabledButtonColor, primaryTextColor: theme.rootController.navigationBar.primaryTextColor, backgroundColor: .clear, separatorColor: .clear, badgeBackgroundColor: theme.rootController.navigationBar.badgeBackgroundColor, badgeStrokeColor: theme.rootController.navigationBar.badgeStrokeColor, badgeTextColor: theme.rootController.navigationBar.badgeTextColor)
     }
     
+    private let sharedContext: SharedAccountContext
     private var account: UnauthorizedAccount
+    private let otherAccountPhoneNumbers: ((String, AccountRecordId, Bool)?, [(String, AccountRecordId, Bool)])
     private let apiId: Int32
     private let apiHash: String
     private var strings: PresentationStrings
-    public let theme: AuthorizationTheme
+    public let theme: PresentationTheme
     private let openUrl: (String) -> Void
     
     private var stateDisposable: Disposable?
     private let actionDisposable = MetaDisposable()
     
-    public init(account: UnauthorizedAccount, strings: PresentationStrings, openUrl: @escaping (String) -> Void, apiId: Int32, apiHash: String) {
+    private var didPlayPresentationAnimation = false
+    
+    public init(sharedContext: SharedAccountContext, account: UnauthorizedAccount, otherAccountPhoneNumbers: ((String, AccountRecordId, Bool)?, [(String, AccountRecordId, Bool)]), strings: PresentationStrings, theme: PresentationTheme, openUrl: @escaping (String) -> Void, apiId: Int32, apiHash: String) {
+        self.sharedContext = sharedContext
         self.account = account
+        self.otherAccountPhoneNumbers = otherAccountPhoneNumbers
         self.apiId = apiId
         self.apiHash = apiHash
         self.strings = strings
+        self.theme = theme
         self.openUrl = openUrl
-        self.theme = defaultLightAuthorizationTheme
         
         super.init(mode: .single, theme: NavigationControllerTheme(navigationBar: AuthorizationSequenceController.navigationBarTheme(theme), emptyAreaColor: .black, emptyDetailIcon: nil))
         
@@ -65,7 +71,7 @@ public final class AuthorizationSequenceController: NavigationController {
     
     override public func loadView() {
         super.loadView()
-        self.view.backgroundColor = self.theme.backgroundColor
+        self.view.backgroundColor = self.theme.list.plainBackgroundColor
     }
     
     private func splashController() -> AuthorizationSequenceSplashController {
@@ -80,21 +86,9 @@ public final class AuthorizationSequenceController: NavigationController {
         if let currentController = currentController {
             controller = currentController
         } else {
-            controller = AuthorizationSequenceSplashController(postbox: self.account.postbox, network: self.account.network, theme: self.theme)
+            controller = AuthorizationSequenceSplashController(accountManager: self.sharedContext.accountManager, postbox: self.account.postbox, network: self.account.network, theme: self.theme)
             controller.nextPressed = { [weak self] strings in
-                if let strongSelf = self {
-                    if let strings = strings {
-                        strongSelf.strings = strings
-                    }
-                    let masterDatacenterId = strongSelf.account.masterDatacenterId
-                    let isTestingEnvironment = strongSelf.account.testingEnvironment
-                    
-                    let countryCode = defaultCountryCode()
-                    
-                    let _ = (strongSelf.account.postbox.transaction { transaction -> Void in
-                        transaction.setState(UnauthorizedAccountState(isTestingEnvironment: isTestingEnvironment, masterDatacenterId: masterDatacenterId, contents: .phoneEntry(countryCode: countryCode, number: "")))
-                    }).start()
-                }
+                self?.next(strings)
             }
             controller.skipPressed = { [weak controller] strings in
                 guard let controller = controller else { return }
@@ -105,15 +99,28 @@ public final class AuthorizationSequenceController: NavigationController {
                 mock.modalPresentationStyle = .overCurrentContext
                 mock.viewControllers?.forEach { child in
                     guard let object = child as? MockController else { return }
-                    object.barButtonDidSelect = { [weak controller] in
-                        guard let controller = controller else { return }
-                        controller.activateLocalization()
+                    object.barButtonDidSelect = { [weak self] in
+                        self?.next(strings)
                     }
                 }
                 controller.present(mock, animated: true)
             }
         }
         return controller
+    }
+    
+    private func next(_ strings: PresentationStrings?) {
+        if let strings = strings {
+            self.strings = strings
+        }
+        let masterDatacenterId = self.account.masterDatacenterId
+        let isTestingEnvironment = self.account.testingEnvironment
+        
+        let countryCode = defaultCountryCode()
+        
+        let _ = (self.account.postbox.transaction { transaction -> Void in
+            transaction.setState(UnauthorizedAccountState(isTestingEnvironment: isTestingEnvironment, masterDatacenterId: masterDatacenterId, contents: .phoneEntry(countryCode: countryCode, number: "")))
+        }).start()
     }
     
     private func phoneEntryController(countryCode: Int32, number: String) -> AuthorizationSequencePhoneEntryController {
@@ -128,20 +135,26 @@ public final class AuthorizationSequenceController: NavigationController {
         if let currentController = currentController {
             controller = currentController
         } else {
-            controller = AuthorizationSequencePhoneEntryController(network: self.account.network, strings: self.strings, theme: self.theme, openUrl: { [weak self] url in
+            controller = AuthorizationSequencePhoneEntryController(sharedContext: self.sharedContext, isTestingEnvironment: self.account.testingEnvironment, otherAccountPhoneNumbers: self.otherAccountPhoneNumbers, network: self.account.network, strings: self.strings, theme: self.theme, openUrl: { [weak self] url in
                 self?.openUrl(url)
             }, back: { [weak self] in
                 guard let strongSelf = self else {
                     return
                 }
-                let _ = strongSelf.account.postbox.transaction({ transaction -> Void in
-                    transaction.setState(UnauthorizedAccountState(isTestingEnvironment: strongSelf.account.testingEnvironment, masterDatacenterId: strongSelf.account.masterDatacenterId, contents: .empty))
-                }).start()
+                if !strongSelf.otherAccountPhoneNumbers.1.isEmpty {
+                    let _ = (strongSelf.sharedContext.accountManager.transaction { transaction -> Void in
+                        transaction.removeAuth()
+                    }).start()
+                } else {
+                    let _ = strongSelf.account.postbox.transaction({ transaction -> Void in
+                        transaction.setState(UnauthorizedAccountState(isTestingEnvironment: strongSelf.account.testingEnvironment, masterDatacenterId: strongSelf.account.masterDatacenterId, contents: .empty))
+                    }).start()
+                }
             })
-            controller.loginWithNumber = { [weak self, weak controller] number in
+            controller.loginWithNumber = { [weak self, weak controller] number, syncContacts in
                 if let strongSelf = self {
                     controller?.inProgress = true
-                    strongSelf.actionDisposable.set((sendAuthorizationCode(account: strongSelf.account, phoneNumber: number, apiId: strongSelf.apiId, apiHash: strongSelf.apiHash) |> deliverOnMainQueue).start(next: { [weak self] account in
+                    strongSelf.actionDisposable.set((sendAuthorizationCode(accountManager: strongSelf.sharedContext.accountManager, account: strongSelf.account, phoneNumber: number, apiId: strongSelf.apiId, apiHash: strongSelf.apiHash, syncContacts: syncContacts) |> deliverOnMainQueue).start(next: { [weak self] account in
                         if let strongSelf = self {
                             controller?.inProgress = false
                             strongSelf.account = account
@@ -216,10 +229,10 @@ public final class AuthorizationSequenceController: NavigationController {
                                         guard let strongSelf = self, let controller = controller else {
                                             return
                                         }
-                                        controller.present(proxySettingsController(postbox: strongSelf.account.postbox, network: strongSelf.account.network, mode: .modal, theme: defaultPresentationTheme, strings: strongSelf.strings, updatedPresentationData: .single((defaultPresentationTheme, strongSelf.strings))), in: .window(.root), with: ViewControllerPresentationArguments(presentationAnimation: .modalSheet))
+                                        controller.present(proxySettingsController(accountManager: strongSelf.sharedContext.accountManager, postbox: strongSelf.account.postbox, network: strongSelf.account.network, mode: .modal, theme: defaultPresentationTheme, strings: strongSelf.strings, updatedPresentationData: .single((defaultPresentationTheme, strongSelf.strings))), in: .window(.root), with: ViewControllerPresentationArguments(presentationAnimation: .modalSheet))
                                     }))
                             }
-                            controller.present(standardTextAlertController(theme: AlertControllerTheme(authTheme: strongSelf.theme), title: nil, text: text, actions: actions), in: .window(.root))
+                            controller.present(standardTextAlertController(theme: AlertControllerTheme(presentationTheme: strongSelf.theme), title: nil, text: text, actions: actions), in: .window(.root))
                         }
                     }))
                 }
@@ -259,7 +272,7 @@ public final class AuthorizationSequenceController: NavigationController {
                 if let strongSelf = self {
                     controller?.inProgress = true
                     
-                    strongSelf.actionDisposable.set((authorizeWithCode(account: strongSelf.account, code: code, termsOfService: termsOfService?.0)
+                    strongSelf.actionDisposable.set((authorizeWithCode(accountManager: strongSelf.sharedContext.accountManager, account: strongSelf.account, code: code, termsOfService: termsOfService?.0)
                     |> deliverOnMainQueue).start(next: { result in
                         guard let strongSelf = self else {
                             return
@@ -274,7 +287,7 @@ public final class AuthorizationSequenceController: NavigationController {
                                             return
                                         }
                                         var dismissImpl: (() -> Void)?
-                                        let alertTheme = AlertControllerTheme(authTheme: strongSelf.theme)
+                                        let alertTheme = AlertControllerTheme(presentationTheme: strongSelf.theme)
                                         let attributedText = stringWithAppliedEntities(termsOfService.text, entities: termsOfService.entities, baseColor: alertTheme.primaryColor, linkColor: alertTheme.accentColor, baseFont: Font.regular(13.0), linkFont: Font.regular(13.0), boldFont: Font.semibold(13.0), italicFont: Font.italic(13.0), fixedFont: Font.regular(13.0))
                                         let contentNode = TextAlertContentNode(theme: alertTheme, title: NSAttributedString(string: strongSelf.strings.Login_TermsOfServiceHeader, font: Font.medium(17.0), textColor: alertTheme.primaryColor, paragraphAlignment: .center), text: attributedText, actions: [
                                             TextAlertAction(type: .defaultAction, title: strongSelf.strings.Login_TermsOfServiceAgree, action: {
@@ -344,7 +357,7 @@ public final class AuthorizationSequenceController: NavigationController {
                                         }).start()
                                 }
                                 
-                                controller.present(standardTextAlertController(theme: AlertControllerTheme(authTheme: strongSelf.theme), title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_OK, action: {})]), in: .window(.root))
+                                controller.present(standardTextAlertController(theme: AlertControllerTheme(presentationTheme: strongSelf.theme), title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_OK, action: {})]), in: .window(.root))
                             }
                         }
                     }))
@@ -354,18 +367,11 @@ public final class AuthorizationSequenceController: NavigationController {
         controller.requestNextOption = { [weak self, weak controller] in
             if let strongSelf = self {
                 if nextType == nil {
-                    if MFMailComposeViewController.canSendMail() {
-                        let phoneFormatted = formatPhoneNumber(number)
-                        
-                        let composeController = MFMailComposeViewController()
-                        //composeController.mailComposeDelegate = strongSelf
-                        composeController.setToRecipients(["sms@stel.com"])
-                        composeController.setSubject(strongSelf.strings.Login_EmailCodeSubject(phoneFormatted).0)
-                        composeController.setMessageBody(strongSelf.strings.Login_EmailCodeBody(phoneFormatted).0, isHTML: false)
-                        
-                        controller?.view.window?.rootViewController?.present(composeController, animated: true, completion: nil)
+                    if MFMailComposeViewController.canSendMail(), let controller = controller {
+                        let formattedNumber = formatPhoneNumber(number)
+                        strongSelf.presentEmailComposeController(address: "sms@stel.com", subject: strongSelf.strings.Login_EmailCodeSubject(formattedNumber).0, body: strongSelf.strings.Login_EmailCodeBody(formattedNumber).0, from: controller)
                     } else {
-                        controller?.present(standardTextAlertController(theme: AlertControllerTheme(authTheme: strongSelf.theme), title: nil, text: strongSelf.strings.Login_EmailNotConfiguredError, actions: [TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_OK, action: {})]), in: .window(.root))
+                        controller?.present(standardTextAlertController(theme: AlertControllerTheme(presentationTheme: strongSelf.theme), title: nil, text: strongSelf.strings.Login_EmailNotConfiguredError, actions: [TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_OK, action: {})]), in: .window(.root))
                     }
                 } else {
                     controller?.inProgress = true
@@ -392,7 +398,7 @@ public final class AuthorizationSequenceController: NavigationController {
                                     text = strongSelf.strings.Login_NetworkError
                             }
                             
-                            controller.present(standardTextAlertController(theme: AlertControllerTheme(authTheme: strongSelf.theme), title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_OK, action: {})]), in: .window(.root))
+                            controller.present(standardTextAlertController(theme: AlertControllerTheme(presentationTheme: strongSelf.theme), title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_OK, action: {})]), in: .window(.root))
                         }
                     }))
                 }
@@ -410,7 +416,7 @@ public final class AuthorizationSequenceController: NavigationController {
         return controller
     }
     
-    private func passwordEntryController(hint: String, suggestReset: Bool) -> AuthorizationSequencePasswordEntryController {
+    private func passwordEntryController(hint: String, suggestReset: Bool, syncContacts: Bool) -> AuthorizationSequencePasswordEntryController {
         var currentController: AuthorizationSequencePasswordEntryController?
         for c in self.viewControllers {
             if let c = c as? AuthorizationSequencePasswordEntryController {
@@ -436,7 +442,7 @@ public final class AuthorizationSequenceController: NavigationController {
                 if let strongSelf = self {
                     controller?.inProgress = true
                     
-                    strongSelf.actionDisposable.set((authorizeWithPassword(account: strongSelf.account, password: password) |> deliverOnMainQueue).start(error: { error in
+                    strongSelf.actionDisposable.set((authorizeWithPassword(accountManager: strongSelf.sharedContext.accountManager, account: strongSelf.account, password: password, syncContacts: syncContacts) |> deliverOnMainQueue).start(error: { error in
                         Queue.mainQueue().async {
                             if let strongSelf = self, let controller = controller {
                                 controller.inProgress = false
@@ -451,7 +457,7 @@ public final class AuthorizationSequenceController: NavigationController {
                                         text = strongSelf.strings.Login_UnknownError
                                 }
                                 
-                                controller.present(standardTextAlertController(theme: AlertControllerTheme(authTheme: strongSelf.theme), title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_OK, action: {})]), in: .window(.root))
+                                controller.present(standardTextAlertController(theme: AlertControllerTheme(presentationTheme: strongSelf.theme), title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_OK, action: {})]), in: .window(.root))
                                 controller.passwordIsInvalid()
                             }
                         }
@@ -469,17 +475,17 @@ public final class AuthorizationSequenceController: NavigationController {
                         switch option {
                             case let .email(pattern):
                                 let _ = (strongSelf.account.postbox.transaction { transaction -> Void in
-                                    if let state = transaction.getState() as? UnauthorizedAccountState, case let .passwordEntry(hint, number, code, _) = state.contents {
-                                        transaction.setState(UnauthorizedAccountState(isTestingEnvironment: strongSelf.account.testingEnvironment, masterDatacenterId: strongSelf.account.masterDatacenterId, contents: .passwordRecovery(hint: hint, number: number, code: code, emailPattern: pattern)))
+                                    if let state = transaction.getState() as? UnauthorizedAccountState, case let .passwordEntry(hint, number, code, _, syncContacts) = state.contents {
+                                        transaction.setState(UnauthorizedAccountState(isTestingEnvironment: strongSelf.account.testingEnvironment, masterDatacenterId: strongSelf.account.masterDatacenterId, contents: .passwordRecovery(hint: hint, number: number, code: code, emailPattern: pattern, syncContacts: syncContacts)))
                                     }
                                 }).start()
                             case .none:
-                                strongController.present(standardTextAlertController(theme: AlertControllerTheme(authTheme: strongSelf.theme), title: nil, text: strongSelf.strings.TwoStepAuth_RecoveryUnavailable, actions: [TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_OK, action: {})]), in: .window(.root))
+                                strongController.present(standardTextAlertController(theme: AlertControllerTheme(presentationTheme: strongSelf.theme), title: nil, text: strongSelf.strings.TwoStepAuth_RecoveryUnavailable, actions: [TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_OK, action: {})]), in: .window(.root))
                                 strongController.didForgotWithNoRecovery = true
                         }
                     }
                 }, error: { error in
-                    if let strongSelf = self, let strongController = controller {
+                    if let strongController = controller {
                         strongController.inProgress = false
                     }
                 }))
@@ -487,7 +493,7 @@ public final class AuthorizationSequenceController: NavigationController {
         }
         controller.reset = { [weak self, weak controller] in
             if let strongSelf = self, let strongController = controller {
-                strongController.present(standardTextAlertController(theme: AlertControllerTheme(authTheme: strongSelf.theme), title: nil, text: suggestReset ? strongSelf.strings.TwoStepAuth_RecoveryFailed : strongSelf.strings.TwoStepAuth_RecoveryUnavailable, actions: [
+                strongController.present(standardTextAlertController(theme: AlertControllerTheme(presentationTheme: strongSelf.theme), title: nil, text: suggestReset ? strongSelf.strings.TwoStepAuth_RecoveryFailed : strongSelf.strings.TwoStepAuth_RecoveryUnavailable, actions: [
                     TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_Cancel, action: {}),
                     TextAlertAction(type: .destructiveAction, title: strongSelf.strings.Login_ResetAccountProtected_Reset, action: {
                         if let strongSelf = self, let strongController = controller {
@@ -507,7 +513,7 @@ public final class AuthorizationSequenceController: NavigationController {
                                         case .limitExceeded:
                                             text = strongSelf.strings.Login_ResetAccountProtected_LimitExceeded
                                     }
-                                    strongController.present(standardTextAlertController(theme: AlertControllerTheme(authTheme: strongSelf.theme), title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_OK, action: {})]), in: .window(.root))
+                                    strongController.present(standardTextAlertController(theme: AlertControllerTheme(presentationTheme: strongSelf.theme), title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_OK, action: {})]), in: .window(.root))
                                 }
                             }))
                         }
@@ -518,7 +524,7 @@ public final class AuthorizationSequenceController: NavigationController {
         return controller
     }
     
-    private func passwordRecoveryController(emailPattern: String) -> AuthorizationSequencePasswordRecoveryController {
+    private func passwordRecoveryController(emailPattern: String, syncContacts: Bool) -> AuthorizationSequencePasswordRecoveryController {
         var currentController: AuthorizationSequencePasswordRecoveryController?
         for c in self.viewControllers {
             if let c = c as? AuthorizationSequencePasswordRecoveryController {
@@ -544,7 +550,7 @@ public final class AuthorizationSequenceController: NavigationController {
                 if let strongSelf = self {
                     controller?.inProgress = true
                     
-                    strongSelf.actionDisposable.set((performPasswordRecovery(account: strongSelf.account, code: code) |> deliverOnMainQueue).start(error: { error in
+                    strongSelf.actionDisposable.set((performPasswordRecovery(accountManager: strongSelf.sharedContext.accountManager, account: strongSelf.account, code: code, syncContacts: syncContacts) |> deliverOnMainQueue).start(error: { error in
                         Queue.mainQueue().async {
                             if let strongSelf = self, let controller = controller {
                                 controller.inProgress = false
@@ -559,7 +565,7 @@ public final class AuthorizationSequenceController: NavigationController {
                                         text = strongSelf.strings.Login_CodeExpiredError
                                 }
                                 
-                                controller.present(standardTextAlertController(theme: AlertControllerTheme(authTheme: strongSelf.theme), title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_OK, action: {})]), in: .window(.root))
+                                controller.present(standardTextAlertController(theme: AlertControllerTheme(presentationTheme: strongSelf.theme), title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_OK, action: {})]), in: .window(.root))
                             }
                         }
                     }))
@@ -567,11 +573,11 @@ public final class AuthorizationSequenceController: NavigationController {
             }
             controller.noAccess = { [weak self, weak controller] in
                 if let strongSelf = self, let controller = controller {
-                    controller.present(standardTextAlertController(theme: AlertControllerTheme(authTheme: strongSelf.theme), title: nil, text: strongSelf.strings.TwoStepAuth_RecoveryFailed, actions: [TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_OK, action: {})]), in: .window(.root))
+                    controller.present(standardTextAlertController(theme: AlertControllerTheme(presentationTheme: strongSelf.theme), title: nil, text: strongSelf.strings.TwoStepAuth_RecoveryFailed, actions: [TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_OK, action: {})]), in: .window(.root))
                     let account = strongSelf.account
                     let _ = (strongSelf.account.postbox.transaction { transaction -> Void in
-                        if let state = transaction.getState() as? UnauthorizedAccountState, case let .passwordRecovery(hint, number, code, _) = state.contents {
-                            transaction.setState(UnauthorizedAccountState(isTestingEnvironment: account.testingEnvironment, masterDatacenterId: account.masterDatacenterId, contents: .passwordEntry(hint: hint, number: number, code: code, suggestReset: true)))
+                        if let state = transaction.getState() as? UnauthorizedAccountState, case let .passwordRecovery(hint, number, code, _, syncContacts) = state.contents {
+                            transaction.setState(UnauthorizedAccountState(isTestingEnvironment: account.testingEnvironment, masterDatacenterId: account.masterDatacenterId, contents: .passwordEntry(hint: hint, number: number, code: code, suggestReset: true, syncContacts: syncContacts)))
                         }
                     }).start()
                 }
@@ -605,7 +611,7 @@ public final class AuthorizationSequenceController: NavigationController {
             })
             controller.reset = { [weak self, weak controller] in
                 if let strongSelf = self, let strongController = controller {
-                    strongController.present(standardTextAlertController(theme: AlertControllerTheme(authTheme: strongSelf.theme), title: nil, text: strongSelf.strings.TwoStepAuth_ResetAccountConfirmation, actions: [
+                    strongController.present(standardTextAlertController(theme: AlertControllerTheme(presentationTheme: strongSelf.theme), title: nil, text: strongSelf.strings.TwoStepAuth_ResetAccountConfirmation, actions: [
                         TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_Cancel, action: {}),
                         TextAlertAction(type: .destructiveAction, title: strongSelf.strings.Login_ResetAccountProtected_Reset, action: {
                             if let strongSelf = self, let strongController = controller {
@@ -625,7 +631,7 @@ public final class AuthorizationSequenceController: NavigationController {
                                                 case .limitExceeded:
                                                     text = strongSelf.strings.Login_ResetAccountProtected_LimitExceeded
                                             }
-                                            strongController.present(standardTextAlertController(theme: AlertControllerTheme(authTheme: strongSelf.theme), title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_OK, action: {})]), in: .window(.root))
+                                            strongController.present(standardTextAlertController(theme: AlertControllerTheme(presentationTheme: strongSelf.theme), title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_OK, action: {})]), in: .window(.root))
                                         }
                                     }))
                             }
@@ -671,7 +677,7 @@ public final class AuthorizationSequenceController: NavigationController {
                 if let strongSelf = self {
                     controller?.inProgress = true
                     
-                    strongSelf.actionDisposable.set((signUpWithName(account: strongSelf.account, firstName: firstName, lastName: lastName, avatarData: avatarData)
+                    strongSelf.actionDisposable.set((signUpWithName(accountManager: strongSelf.sharedContext.accountManager, account: strongSelf.account, firstName: firstName, lastName: lastName, avatarData: avatarData)
                     |> deliverOnMainQueue).start(error: { error in
                         Queue.mainQueue().async {
                             if let strongSelf = self, let controller = controller {
@@ -691,7 +697,7 @@ public final class AuthorizationSequenceController: NavigationController {
                                         text = strongSelf.strings.Login_UnknownError
                                 }
                                 
-                                controller.present(standardTextAlertController(theme: AlertControllerTheme(authTheme: strongSelf.theme), title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_OK, action: {})]), in: .window(.root))
+                                controller.present(standardTextAlertController(theme: AlertControllerTheme(presentationTheme: strongSelf.theme), title: nil, text: text, actions: [TextAlertAction(type: .defaultAction, title: strongSelf.strings.Common_OK, action: {})]), in: .window(.root))
                             }
                         }
                     }))
@@ -711,20 +717,57 @@ public final class AuthorizationSequenceController: NavigationController {
                     case .empty:
                         if let _ = self.viewControllers.last as? AuthorizationSequenceSplashController {
                         } else {
-                            self.setViewControllers([self.splashController()], animated: !self.viewControllers.isEmpty)
+                            var controllers: [ViewController] = []
+                            if self.otherAccountPhoneNumbers.1.isEmpty {
+                                controllers.append(self.splashController())
+                            } else {
+                                controllers.append(self.phoneEntryController(countryCode: defaultCountryCode(), number: ""))
+                            }
+                            self.setViewControllers(controllers, animated: !self.viewControllers.isEmpty)
                         }
                     case let .phoneEntry(countryCode, number):
-                        self.setViewControllers([self.splashController(), self.phoneEntryController(countryCode: countryCode, number: number)], animated: !self.viewControllers.isEmpty)
-                    case let .confirmationCodeEntry(number, type, _, timeout, nextType, termsOfService):
-                        self.setViewControllers([self.splashController(), self.phoneEntryController(countryCode: defaultCountryCode(), number: ""), self.codeEntryController(number: number, type: type, nextType: nextType, timeout: timeout, termsOfService: termsOfService)], animated: !self.viewControllers.isEmpty)
-                    case let .passwordEntry(hint, _, _, suggestReset):
-                        self.setViewControllers([self.splashController(), self.passwordEntryController(hint: hint, suggestReset: suggestReset)], animated: !self.viewControllers.isEmpty)
-                    case let .passwordRecovery(_, _, _, emailPattern):
-                        self.setViewControllers([self.splashController(), self.passwordRecoveryController(emailPattern: emailPattern)], animated: !self.viewControllers.isEmpty)
-                    case let .awaitingAccountReset(protectedUntil, number):
-                        self.setViewControllers([self.splashController(), self.awaitingAccountResetController(protectedUntil: protectedUntil, number: number)], animated: !self.viewControllers.isEmpty)
-                    case let .signUp(_, _, _, firstName, lastName, termsOfService):
-                        self.setViewControllers([self.splashController(), self.signUpController(firstName: firstName, lastName: lastName, termsOfService: termsOfService)], animated: !self.viewControllers.isEmpty)
+                        var controllers: [ViewController] = []
+                        if !self.otherAccountPhoneNumbers.1.isEmpty {
+                            controllers.append(self.splashController())
+                        }
+                        controllers.append(self.phoneEntryController(countryCode: countryCode, number: number))
+                        self.setViewControllers(controllers, animated: !self.viewControllers.isEmpty)
+                    case let .confirmationCodeEntry(number, type, _, timeout, nextType, termsOfService, syncContacts):
+                        var controllers: [ViewController] = []
+                        if !self.otherAccountPhoneNumbers.1.isEmpty {
+                            controllers.append(self.splashController())
+                        }
+                        controllers.append(self.phoneEntryController(countryCode: defaultCountryCode(), number: ""))
+                        controllers.append(self.codeEntryController(number: number, type: type, nextType: nextType, timeout: timeout, termsOfService: termsOfService))
+                        self.setViewControllers(controllers, animated: !self.viewControllers.isEmpty)
+                    case let .passwordEntry(hint, _, _, suggestReset, syncContacts):
+                        var controllers: [ViewController] = []
+                        if !self.otherAccountPhoneNumbers.1.isEmpty {
+                            controllers.append(self.splashController())
+                        }
+                        controllers.append(self.passwordEntryController(hint: hint, suggestReset: suggestReset, syncContacts: syncContacts))
+                        self.setViewControllers(controllers, animated: !self.viewControllers.isEmpty)
+                    case let .passwordRecovery(_, _, _, emailPattern, syncContacts):
+                        var controllers: [ViewController] = []
+                        if !self.otherAccountPhoneNumbers.1.isEmpty {
+                            controllers.append(self.splashController())
+                        }
+                        controllers.append(self.passwordRecoveryController(emailPattern: emailPattern, syncContacts: syncContacts))
+                        self.setViewControllers(controllers, animated: !self.viewControllers.isEmpty)
+                    case let .awaitingAccountReset(protectedUntil, number, _):
+                        var controllers: [ViewController] = []
+                        if !self.otherAccountPhoneNumbers.1.isEmpty {
+                            controllers.append(self.splashController())
+                        }
+                        controllers.append(self.awaitingAccountResetController(protectedUntil: protectedUntil, number: number))
+                        self.setViewControllers(controllers, animated: !self.viewControllers.isEmpty)
+                    case let .signUp(_, _, _, firstName, lastName, termsOfService, syncContacts):
+                        var controllers: [ViewController] = []
+                        if !self.otherAccountPhoneNumbers.1.isEmpty {
+                            controllers.append(self.splashController())
+                        }
+                        controllers.append(self.signUpController(firstName: firstName, lastName: lastName, termsOfService: termsOfService))
+                        self.setViewControllers(controllers, animated: !self.viewControllers.isEmpty)
                 }
         }
     }
@@ -749,11 +792,41 @@ public final class AuthorizationSequenceController: NavigationController {
             composeController.setToRecipients([address])
             composeController.setSubject(subject)
             composeController.setMessageBody(body, isHTML: false)
+            composeController.mailComposeDelegate = self
             
             controller.view.window?.rootViewController?.present(composeController, animated: true, completion: nil)
         } else {
-            controller.present(standardTextAlertController(theme: AlertControllerTheme(authTheme: self.theme), title: nil, text: self.strings.Login_EmailNotConfiguredError, actions: [TextAlertAction(type: .defaultAction, title: self.strings.Common_OK, action: {})]), in: .window(.root))
+            controller.present(standardTextAlertController(theme: AlertControllerTheme(presentationTheme: self.theme), title: nil, text: self.strings.Login_EmailNotConfiguredError, actions: [TextAlertAction(type: .defaultAction, title: self.strings.Common_OK, action: {})]), in: .window(.root))
         }
+    }
+    
+    public func mailComposeController(_ controller: MFMailComposeViewController, didFinishWith result: MFMailComposeResult, error: Error?) {
+        controller.dismiss(animated: true, completion: nil)
+    }
+    
+    private func animateIn() {
+        self.view.layer.animatePosition(from: CGPoint(x: self.view.layer.position.x, y: self.view.layer.position.y + self.view.layer.bounds.size.height), to: self.view.layer.position, duration: 0.5, timingFunction: kCAMediaTimingFunctionSpring)
+    }
+    
+    private func animateOut(completion: (() -> Void)? = nil) {
+        self.view.layer.animatePosition(from: self.view.layer.position, to: CGPoint(x: self.view.layer.position.x, y: self.view.layer.position.y + self.view.layer.bounds.size.height), duration: 0.2, timingFunction: kCAMediaTimingFunctionEaseInEaseOut, removeOnCompletion: false, completion: { _ in
+            completion?()
+        })
+    }
+    
+    override public func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        
+        if !self.didPlayPresentationAnimation {
+            self.didPlayPresentationAnimation = true
+            self.animateIn()
+        }
+    }
+    
+    public func dismiss() {
+        self.animateOut(completion: { [weak self] in
+            self?.presentingViewController?.dismiss(animated: false, completion: nil)
+        })
     }
 }
 

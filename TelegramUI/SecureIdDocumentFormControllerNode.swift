@@ -2124,8 +2124,8 @@ enum SecureIdDocumentFormEntry: FormControllerEntry {
 }
 
 struct SecureIdDocumentFormControllerNodeInitParams {
-    let account: Account
-    let context: SecureIdAccessContext
+    let context: AccountContext
+    let secureIdContext: SecureIdAccessContext
 }
 
 final class SecureIdDocumentFormControllerNode: FormControllerNode<SecureIdDocumentFormControllerNodeInitParams, SecureIdDocumentFormState> {
@@ -2137,8 +2137,8 @@ final class SecureIdDocumentFormControllerNode: FormControllerNode<SecureIdDocum
     private var theme: PresentationTheme
     private var strings: PresentationStrings
     
-    private let account: Account
-    private let context: SecureIdAccessContext
+    private let context: AccountContext
+    private let secureIdContext: SecureIdAccessContext
     
     private let uploadContext: SecureIdVerificationDocumentsContext
     
@@ -2154,18 +2154,18 @@ final class SecureIdDocumentFormControllerNode: FormControllerNode<SecureIdDocum
     required init(initParams: SecureIdDocumentFormControllerNodeInitParams, presentationData: PresentationData) {
         self.theme = presentationData.theme
         self.strings = presentationData.strings
-        self.account = initParams.account
         self.context = initParams.context
+        self.secureIdContext = initParams.secureIdContext
         
         var updateImpl: ((Int64, SecureIdVerificationLocalDocumentState) -> Void)?
         
-        self.uploadContext = SecureIdVerificationDocumentsContext(postbox: self.account.postbox, network: self.account.network, context: self.context, update: { id, state in
+        self.uploadContext = SecureIdVerificationDocumentsContext(postbox: self.context.account.postbox, network: self.context.account.network, context: self.secureIdContext, update: { id, state in
             updateImpl?(id, state)
         })
         
         super.init(initParams: initParams, presentationData: presentationData)
         
-        self._itemParams = SecureIdDocumentFormParams(account: self.account, context: self.context, addFile: { [weak self] type in
+        self._itemParams = SecureIdDocumentFormParams(account: self.context.account, context: self.secureIdContext, addFile: { [weak self] type in
             if let strongSelf = self {
                 strongSelf.view.endEditing(true)
                 strongSelf.presentAssetPicker(type)
@@ -2285,7 +2285,7 @@ final class SecureIdDocumentFormControllerNode: FormControllerNode<SecureIdDocum
             if let strongSelf = self {
                 switch field {
                     case .country:
-                        let controller = AuthorizationSequenceCountrySelectionController(strings: strongSelf.strings, theme: AuthorizationSequenceCountrySelectionTheme(presentationTheme: strongSelf.theme), displayCodes: false)
+                        let controller = AuthorizationSequenceCountrySelectionController(strings: strongSelf.strings, theme: strongSelf.theme, displayCodes: false)
                         controller.completeWithCountryCode = { _, id in
                             if let strongSelf = self, var innerState = strongSelf.innerState {
                                 innerState.documentState.updateCountryCode(value: id)
@@ -2311,7 +2311,7 @@ final class SecureIdDocumentFormControllerNode: FormControllerNode<SecureIdDocum
                         strongSelf.view.endEditing(true)
                         strongSelf.present(controller, ViewControllerPresentationArguments(presentationAnimation: .modalSheet))
                     case .residenceCountry:
-                        let controller = AuthorizationSequenceCountrySelectionController(strings: strongSelf.strings, theme: AuthorizationSequenceCountrySelectionTheme(presentationTheme: strongSelf.theme), displayCodes: false)
+                        let controller = AuthorizationSequenceCountrySelectionController(strings: strongSelf.strings, theme: strongSelf.theme, displayCodes: false)
                         controller.completeWithCountryCode = { _, id in
                             if let strongSelf = self, var innerState = strongSelf.innerState {
                                 innerState.documentState.updateResidenceCountryCode(value: id)
@@ -2360,7 +2360,7 @@ final class SecureIdDocumentFormControllerNode: FormControllerNode<SecureIdDocum
                             }
                         }
                         
-                        let controller = DateSelectionActionSheetController(account: strongSelf.account, title: title, currentValue: current ?? Int32(Date().timeIntervalSince1970), minimumDate: minimumDate, maximumDate: maximumDate, emptyTitle: emptyTitle, applyValue: { value in
+                        let controller = DateSelectionActionSheetController(context: strongSelf.context, title: title, currentValue: current ?? Int32(Date().timeIntervalSince1970), minimumDate: minimumDate, maximumDate: maximumDate, emptyTitle: emptyTitle, applyValue: { value in
                             if let strongSelf = self, var innerState = strongSelf.innerState {
                                 innerState.documentState.updateDateField(type: field, value: value.flatMap(SecureIdDate.init))
                                 var valueKey: SecureIdValueKey?
@@ -2565,7 +2565,7 @@ final class SecureIdDocumentFormControllerNode: FormControllerNode<SecureIdDocum
             case .translation:
                 attachmentType = .multiple
         }
-        presentLegacySecureIdAttachmentMenu(account: self.account, present: { [weak self] c in
+        presentLegacySecureIdAttachmentMenu(context: self.context, present: { [weak self] c in
             self?.view.endEditing(true)
             self?.present(c, nil)
             }, validLayout: validLayout, type: attachmentType, recognizeDocumentData: recognizeDocumentData, completion: { [weak self] resources, recognizedData in
@@ -2718,7 +2718,7 @@ final class SecureIdDocumentFormControllerNode: FormControllerNode<SecureIdDocum
         
         var saveValues: [Signal<SecureIdValueWithContext, SaveSecureIdValueError>] = []
         for (_, value) in values {
-            saveValues.append(saveSecureIdValue(postbox: self.account.postbox, network: self.account.network, context: self.context, value: value, uploadedFiles: self.uploadContext.uploadedFiles))
+            saveValues.append(saveSecureIdValue(postbox: self.context.account.postbox, network: self.context.account.network, context: self.secureIdContext, value: value, uploadedFiles: self.uploadContext.uploadedFiles))
         }
         
         self.actionDisposable.set((combineLatest(saveValues)
@@ -2781,7 +2781,7 @@ final class SecureIdDocumentFormControllerNode: FormControllerNode<SecureIdDocum
                     innerState.actionState = .deleting
                     strongSelf.updateInnerState(transition: .immediate, with: innerState)
                     
-                    strongSelf.actionDisposable.set((deleteSecureIdValues(network: strongSelf.account.network, keys: Set(innerState.previousValues.keys))
+                    strongSelf.actionDisposable.set((deleteSecureIdValues(network: strongSelf.context.account.network, keys: Set(innerState.previousValues.keys))
                     |> deliverOnMainQueue).start(error: { error in
                         guard let strongSelf = self else {
                             return
@@ -2965,7 +2965,7 @@ final class SecureIdDocumentFormControllerNode: FormControllerNode<SecureIdDocum
             }
         }
         
-        let galleryController = SecureIdDocumentGalleryController(account: self.account, context: self.context, entries: entries, centralIndex: centralIndex, replaceRootController: { _, _ in
+        let galleryController = SecureIdDocumentGalleryController(context: self.context, secureIdContext: self.secureIdContext, entries: entries, centralIndex: centralIndex, replaceRootController: { _, _ in
             
         })
         galleryController.deleteResource = { [weak self] resource in
@@ -3028,7 +3028,7 @@ final class SecureIdDocumentFormControllerNode: FormControllerNode<SecureIdDocum
                 if let itemNode = itemNode as? SecureIdValueFormFileItemNode, let item = itemNode.item, let document = item.document {
                     if document.resource.isEqual(to: entry.resource) {
                         return GalleryTransitionArguments(transitionNode: (itemNode.imageNode, {
-                            return itemNode.imageNode.view.snapshotContentTree(unhide: true)
+                            return (itemNode.imageNode.view.snapshotContentTree(unhide: true), nil)
                         }), addToTransitionSurface: { view in
                             self?.view.addSubview(view)
                         })

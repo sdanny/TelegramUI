@@ -13,7 +13,7 @@ private let nameFont = Font.medium(15.0)
 private let dateFont = Font.regular(14.0)
 
 final class AvatarGalleryItemFooterContentNode: GalleryFooterContentNode {
-    private let account: Account
+    private let context: AccountContext
     private var strings: PresentationStrings
     private var dateTimeFormat: PresentationDateTimeFormat
     
@@ -33,8 +33,8 @@ final class AvatarGalleryItemFooterContentNode: GalleryFooterContentNode {
     
     var share: ((GalleryControllerInteraction) -> Void)?
     
-    init(account: Account, presentationData: PresentationData) {
-        self.account = account
+    init(context: AccountContext, presentationData: PresentationData) {
+        self.context = context
         self.strings = presentationData.strings
         self.dateTimeFormat = presentationData.dateTimeFormat
         
@@ -99,7 +99,8 @@ final class AvatarGalleryItemFooterContentNode: GalleryFooterContentNode {
         }
     }
     
-    override func updateLayout(width: CGFloat, leftInset: CGFloat, rightInset: CGFloat, bottomInset: CGFloat, contentInset: CGFloat, transition: ContainedViewLayoutTransition) -> CGFloat {
+    override func updateLayout(size: CGSize, leftInset: CGFloat, rightInset: CGFloat, bottomInset: CGFloat, contentInset: CGFloat, transition: ContainedViewLayoutTransition) -> CGFloat {
+        let width = size.width
         var panelHeight: CGFloat = 44.0 + bottomInset
         panelHeight += contentInset
         
@@ -136,7 +137,7 @@ final class AvatarGalleryItemFooterContentNode: GalleryFooterContentNode {
     }
     
     @objc private func deleteButtonPressed() {
-        let presentationData = self.account.telegramApplicationContext.currentPresentationData.with { $0 }
+        let presentationData = self.context.sharedContext.currentPresentationData.with { $0 }
         let actionSheet = ActionSheetController(presentationTheme: presentationData.theme)
         let items: [ActionSheetItem] = [
             ActionSheetButtonItem(title: presentationData.strings.Common_Delete, color: .destructive, action: { [weak self, weak actionSheet] in

@@ -87,6 +87,8 @@ class ItemListPeerActionItemNode: ListViewItemNode {
     private let iconNode: ASImageNode
     private let titleNode: TextNode
     
+    private let activateArea: AccessibilityAreaNode
+    
     private var item: ItemListPeerActionItem?
     
     init() {
@@ -112,10 +114,14 @@ class ItemListPeerActionItemNode: ListViewItemNode {
         self.highlightedBackgroundNode = ASDisplayNode()
         self.highlightedBackgroundNode.isLayerBacked = true
         
+        self.activateArea = AccessibilityAreaNode()
+        
         super.init(layerBacked: false, dynamicBounce: false)
         
         self.addSubnode(self.iconNode)
         self.addSubnode(self.titleNode)
+        
+        self.addSubnode(self.activateArea)
     }
     
     func asyncLayout() -> (_ item: ItemListPeerActionItem, _ params: ListViewItemLayoutParams, _ neighbors: ItemListNeighbors) -> (ListViewItemNodeLayout, (Bool) -> Void) {
@@ -146,6 +152,9 @@ class ItemListPeerActionItemNode: ListViewItemNode {
             return (layout, { [weak self] animated in
                 if let strongSelf = self {
                     strongSelf.item = item
+                    
+                    strongSelf.activateArea.frame = CGRect(origin: CGPoint(x: params.leftInset, y: 0.0), size: CGSize(width: params.width - params.leftInset - params.rightInset, height: layout.contentSize.height))
+                    strongSelf.activateArea.accessibilityLabel = item.title
                     
                     if let _ = updatedTheme {
                         strongSelf.topStripeNode.backgroundColor = item.theme.list.itemBlocksSeparatorColor

@@ -21,8 +21,13 @@ class NavigationBarSearchContentNode: NavigationBarContentNode {
         self.theme = theme
         self.placeholder = placeholder
         self.placeholderNode = SearchBarPlaceholderNode(fieldStyle: .modern)
+        self.placeholderNode.labelNode.displaysAsynchronously = false
         
         super.init()
+        
+        self.placeholderNode.isAccessibilityElement = true
+        self.placeholderNode.accessibilityLabel = placeholder
+        self.placeholderNode.accessibilityTraits = UIAccessibilityTraitSearchField
         
         self.addSubnode(self.placeholderNode)
         self.placeholderNode.activate = activate
@@ -31,6 +36,7 @@ class NavigationBarSearchContentNode: NavigationBarContentNode {
     func updateThemeAndPlaceholder(theme: PresentationTheme, placeholder: String) {
         self.theme = theme
         self.placeholder = placeholder
+        self.placeholderNode.accessibilityLabel = placeholder
         if let disabledOverlay = self.disabledOverlay {
             disabledOverlay.backgroundColor = theme.rootController.navigationBar.backgroundColor.withAlphaComponent(0.5)
         }
@@ -52,9 +58,22 @@ class NavigationBarSearchContentNode: NavigationBarContentNode {
         self.updateExpansionProgress(progress)
     }
     
+    func updateGridVisibleContentOffset(_ offset: GridNodeVisibleContentOffset) {
+        var progress: CGFloat = 0.0
+        switch offset {
+            case let .known(offset):
+                progress = max(0.0, (self.nominalHeight - offset)) / self.nominalHeight
+            case .none:
+                progress = 1.0
+            default:
+                break
+        }
+        self.updateExpansionProgress(progress)
+    }
+    
     func updateExpansionProgress(_ progress: CGFloat, animated: Bool = false) {
         let newProgress = max(0.0, min(1.0, progress))
-        if newProgress != self.expansionProgress {
+        if abs(newProgress - self.expansionProgress) > 0.0001 {
             self.expansionProgress = newProgress
         
             let transition: ContainedViewLayoutTransition = animated ? .animated(duration: 0.3, curve: .easeInOut) : .immediate

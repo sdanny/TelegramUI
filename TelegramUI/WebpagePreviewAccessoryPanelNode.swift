@@ -22,7 +22,7 @@ final class WebpagePreviewAccessoryPanelNode: AccessoryPanelNode {
     var theme: PresentationTheme
     var strings: PresentationStrings
     
-    init(account: Account, url: String, webpage: TelegramMediaWebpage, theme: PresentationTheme, strings: PresentationStrings) {
+    init(context: AccountContext, url: String, webpage: TelegramMediaWebpage, theme: PresentationTheme, strings: PresentationStrings) {
         self.url = url
         self.webpage = webpage
         self.theme = theme
@@ -105,7 +105,11 @@ final class WebpagePreviewAccessoryPanelNode: AccessoryPanelNode {
                     text = contentText
                 } else {
                     if let file = content.file, let mediaKind = mediaContentKind(file) {
-                        text = stringForMediaKind(mediaKind, strings: self.strings).0
+                        if content.type == "telegram_background" {
+                            text = strings.Message_Wallpaper
+                        } else {
+                            text = stringForMediaKind(mediaKind, strings: self.strings).0
+                        }
                     } else if let _ = content.image {
                         text = stringForMediaKind(.image, strings: self.strings).0
                     }

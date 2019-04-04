@@ -8,7 +8,7 @@ import SwiftSignalKit
 final class ContactsControllerNode: ASDisplayNode {
     let contactListNode: ContactListNode
     
-    private let account: Account
+    private let context: AccountContext
     private var searchDisplayController: SearchDisplayController?
     
     private var containerLayout: (ContainerViewLayout, CGFloat)?
@@ -22,10 +22,10 @@ final class ContactsControllerNode: ASDisplayNode {
     private var presentationData: PresentationData
     private var presentationDataDisposable: Disposable?
     
-    init(account: Account, sortOrder: Signal<ContactsSortOrder, NoError>, present: @escaping (ViewController, Any?) -> Void) {
-        self.account = account
+    init(context: AccountContext, sortOrder: Signal<ContactsSortOrder, NoError>, present: @escaping (ViewController, Any?) -> Void) {
+        self.context = context
         
-        self.presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+        self.presentationData = context.sharedContext.currentPresentationData.with { $0 }
         
         var inviteImpl: (() -> Void)?
         let options = [ContactListAdditionalOption(title: presentationData.strings.Contacts_InviteFriends, icon: .generic(UIImage(bundleImageName: "Contact List/AddMemberIcon")!), action: {
@@ -42,7 +42,7 @@ final class ContactsControllerNode: ASDisplayNode {
             }
         }
         
-        self.contactListNode = ContactListNode(account: account, presentation: presentation, displaySortOptions: true)
+        self.contactListNode = ContactListNode(context: context, presentation: presentation, displaySortOptions: true)
         
         super.init()
         
@@ -54,7 +54,7 @@ final class ContactsControllerNode: ASDisplayNode {
         
         self.addSubnode(self.contactListNode)
         
-        self.presentationDataDisposable = (account.telegramApplicationContext.presentationData
+        self.presentationDataDisposable = (context.sharedContext.presentationData
         |> deliverOnMainQueue).start(next: { [weak self] presentationData in
             if let strongSelf = self {
                 let previousTheme = strongSelf.presentationData.theme
@@ -69,7 +69,7 @@ final class ContactsControllerNode: ASDisplayNode {
         })
         
         inviteImpl = { [weak self] in
-            let _ = (DeviceAccess.authorizationStatus(account: account, subject: .contacts)
+            let _ = (DeviceAccess.authorizationStatus(context: context, subject: .contacts)
             |> take(1)
             |> deliverOnMainQueue).start(next: { value in
                 guard let strongSelf = self else {
@@ -80,11 +80,11 @@ final class ContactsControllerNode: ASDisplayNode {
                     case .allowed:
                         strongSelf.openInvite?()
                     case .notDetermined:
-                        DeviceAccess.authorizeAccess(to: .contacts)
+                        DeviceAccess.authorizeAccess(to: .contacts, context: strongSelf.context)
                     default:
                         let presentationData = strongSelf.presentationData
-                        present(standardTextAlertController(theme: AlertControllerTheme(presentationTheme: presentationData.theme), title: presentationData.strings.AccessDenied_Title, text: presentationData.strings.Contacts_AccessDeniedError, actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_NotNow, action: {}), TextAlertAction(type: .genericAction, title: presentationData.strings.AccessDenied_Settings, action: {
-                            self?.account.telegramApplicationContext.applicationBindings.openSettings()
+                        present(textAlertController(context: strongSelf.context, title: presentationData.strings.AccessDenied_Title, text: presentationData.strings.Contacts_AccessDeniedError, actions: [TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_NotNow, action: {}), TextAlertAction(type: .genericAction, title: presentationData.strings.AccessDenied_Settings, action: {
+                            self?.context.sharedContext.applicationBindings.openSettings()
                         })]), nil)
                 }
             })
@@ -113,7 +113,7 @@ final class ContactsControllerNode: ASDisplayNode {
             searchDisplayController.containerLayoutUpdated(layout, navigationBarHeight: navigationBarHeight, transition: transition)
         }
         
-        self.contactListNode.containerLayoutUpdated(ContainerViewLayout(size: layout.size, metrics: layout.metrics, intrinsicInsets: insets, safeInsets: layout.safeInsets, statusBarHeight: layout.statusBarHeight, inputHeight: layout.inputHeight, standardInputHeight: layout.standardInputHeight, inputHeightIsInteractivellyChanging: layout.inputHeightIsInteractivellyChanging), headerInsets: headerInsets, transition: transition)
+        self.contactListNode.containerLayoutUpdated(ContainerViewLayout(size: layout.size, metrics: layout.metrics, intrinsicInsets: insets, safeInsets: layout.safeInsets, statusBarHeight: layout.statusBarHeight, inputHeight: layout.inputHeight, standardInputHeight: layout.standardInputHeight, inputHeightIsInteractivellyChanging: layout.inputHeightIsInteractivellyChanging, inVoiceOver: layout.inVoiceOver), headerInsets: headerInsets, transition: transition)
         
         self.contactListNode.frame = CGRect(origin: CGPoint(), size: layout.size)
     }
@@ -123,7 +123,7 @@ final class ContactsControllerNode: ASDisplayNode {
             return
         }
         
-        self.searchDisplayController = SearchDisplayController(presentationData: self.presentationData, contentNode: ContactsSearchContainerNode(account: self.account, onlyWriteable: false, categories: [.cloudContacts, .global, .deviceContacts], openPeer: { [weak self] peer in
+        self.searchDisplayController = SearchDisplayController(presentationData: self.presentationData, contentNode: ContactsSearchContainerNode(context: self.context, onlyWriteable: false, categories: [.cloudContacts, .global, .deviceContacts], openPeer: { [weak self] peer in
             if let requestOpenPeerFromSearch = self?.requestOpenPeerFromSearch {
                 requestOpenPeerFromSearch(peer)
             }
@@ -145,9 +145,9 @@ final class ContactsControllerNode: ASDisplayNode {
         }, placeholder: placeholderNode)
     }
     
-    func deactivateSearch(placeholderNode: SearchBarPlaceholderNode) {
+    func deactivateSearch(placeholderNode: SearchBarPlaceholderNode, animated: Bool) {
         if let searchDisplayController = self.searchDisplayController {
-            searchDisplayController.deactivate(placeholder: placeholderNode)
+            searchDisplayController.deactivate(placeholder: placeholderNode, animated: animated)
             self.searchDisplayController = nil
         }
     }

@@ -11,8 +11,8 @@ final class MediaNavigationAccessoryContainerNode: ASDisplayNode, UIGestureRecog
     
     private var presentationData: PresentationData
     
-    init(account: Account) {
-        self.presentationData = account.telegramApplicationContext.currentPresentationData.with { $0 }
+    init(context: AccountContext) {
+        self.presentationData = context.sharedContext.currentPresentationData.with { $0 }
         
         self.backgroundNode = ASDisplayNode()
         self.headerNode = MediaNavigationAccessoryHeaderNode(presentationData: self.presentationData)
@@ -23,12 +23,6 @@ final class MediaNavigationAccessoryContainerNode: ASDisplayNode, UIGestureRecog
         self.addSubnode(self.backgroundNode)
         
         self.addSubnode(self.headerNode)
-        
-        self.headerNode.tapAction = { [weak self] in
-            if let strongSelf = self {
-                
-            }
-        }
     }
     
     func updatePresentationData(_ presentationData: PresentationData) {

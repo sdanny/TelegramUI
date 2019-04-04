@@ -11,7 +11,7 @@ private let actionImage = generateTintedImage(image: UIImage(bundleImageName: "C
 private let textFont = Font.regular(16.0)
 
 final class InstantPageGalleryFooterContentNode: GalleryFooterContentNode {
-    private let account: Account
+    private let context: AccountContext
     private var theme: PresentationTheme
     private var strings: PresentationStrings
     private var shareMedia: AnyMediaReference?
@@ -24,8 +24,8 @@ final class InstantPageGalleryFooterContentNode: GalleryFooterContentNode {
     var openUrl: ((InstantPageUrlItem) -> Void)?
     var openUrlOptions: ((InstantPageUrlItem) -> Void)?
     
-    init(account: Account, presentationData: PresentationData) {
-        self.account = account
+    init(context: AccountContext, presentationData: PresentationData) {
+        self.context = context
         self.theme = presentationData.theme
         self.strings = presentationData.strings
         
@@ -99,7 +99,8 @@ final class InstantPageGalleryFooterContentNode: GalleryFooterContentNode {
         self.actionButton.isHidden = shareMedia == nil
     }
     
-    override func updateLayout(width: CGFloat, leftInset: CGFloat, rightInset: CGFloat, bottomInset: CGFloat, contentInset: CGFloat, transition: ContainedViewLayoutTransition) -> CGFloat {
+    override func updateLayout(size: CGSize, leftInset: CGFloat, rightInset: CGFloat, bottomInset: CGFloat, contentInset: CGFloat, transition: ContainedViewLayoutTransition) -> CGFloat {
+        let width = size.width
         var panelHeight: CGFloat = 44.0 + bottomInset + contentInset
         if !self.textNode.isHidden {
             let sideInset: CGFloat = leftInset + 8.0
@@ -139,7 +140,7 @@ final class InstantPageGalleryFooterContentNode: GalleryFooterContentNode {
     
     @objc func actionButtonPressed() {
         if let shareMedia = self.shareMedia {
-            self.controllerInteraction?.presentController(ShareController(account: self.account, subject: .media(shareMedia), preferredAction: .saveToCameraRoll, showInChat: nil, externalShare: true, immediateExternalShare: false), nil)
+            self.controllerInteraction?.presentController(ShareController(context: self.context, subject: .media(shareMedia), preferredAction: .saveToCameraRoll, showInChat: nil, externalShare: true, immediateExternalShare: false), nil)
         }
     }
 }

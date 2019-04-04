@@ -7,8 +7,8 @@ import SwiftSignalKit
 import TelegramCore
 
 public enum ChatMessageItemContent: Sequence {
-    case message(message: Message, read: Bool, selection: ChatHistoryMessageSelection, isAdmin: Bool)
-    case group(messages: [(Message, Bool, ChatHistoryMessageSelection, Bool)])
+    case message(message: Message, read: Bool, selection: ChatHistoryMessageSelection, attributes: ChatMessageEntryAttributes)
+    case group(messages: [(Message, Bool, ChatHistoryMessageSelection, ChatMessageEntryAttributes)])
     
     func effectivelyIncoming(_ accountPeerId: PeerId) -> Bool {
         switch self {
@@ -188,14 +188,16 @@ enum ChatMessageMerge: Int32 {
 }
 
 public final class ChatMessageItemAssociatedData: Equatable {
-    let automaticDownloadPeerType: AutomaticMediaDownloadPeerType
-    let automaticDownloadNetworkType: AutomaticDownloadNetworkType
+    let automaticDownloadPeerType: MediaAutoDownloadPeerType
+    let automaticDownloadNetworkType: MediaAutoDownloadNetworkType
     let isRecentActions: Bool
+    let contactsPeerIds: Set<PeerId>
     
-    init(automaticDownloadPeerType: AutomaticMediaDownloadPeerType, automaticDownloadNetworkType: AutomaticDownloadNetworkType, isRecentActions: Bool) {
+    init(automaticDownloadPeerType: MediaAutoDownloadPeerType, automaticDownloadNetworkType: MediaAutoDownloadNetworkType, isRecentActions: Bool, contactsPeerIds: Set<PeerId> = Set()) {
         self.automaticDownloadPeerType = automaticDownloadPeerType
         self.automaticDownloadNetworkType = automaticDownloadNetworkType
         self.isRecentActions = isRecentActions
+        self.contactsPeerIds = contactsPeerIds
     }
     
     public static func == (lhs: ChatMessageItemAssociatedData, rhs: ChatMessageItemAssociatedData) -> Bool {
@@ -208,13 +210,16 @@ public final class ChatMessageItemAssociatedData: Equatable {
         if lhs.isRecentActions != rhs.isRecentActions {
             return false
         }
+        if lhs.contactsPeerIds != rhs.contactsPeerIds {
+            return false
+        }
         return true
     }
 }
 
 public final class ChatMessageItem: ListViewItem, CustomStringConvertible {
     let presentationData: ChatPresentationData
-    let account: Account
+    let context: AccountContext
     let chatLocation: ChatLocation
     let associatedData: ChatMessageItemAssociatedData
     let controllerInteraction: ChatControllerInteraction
@@ -244,9 +249,9 @@ public final class ChatMessageItem: ListViewItem, CustomStringConvertible {
         }
     }
     
-    public init(presentationData: ChatPresentationData, account: Account, chatLocation: ChatLocation, associatedData: ChatMessageItemAssociatedData, controllerInteraction: ChatControllerInteraction, content: ChatMessageItemContent, disableDate: Bool = false, additionalContent: ChatMessageItemAdditionalContent? = nil) {
+    public init(presentationData: ChatPresentationData, context: AccountContext, chatLocation: ChatLocation, associatedData: ChatMessageItemAssociatedData, controllerInteraction: ChatControllerInteraction, content: ChatMessageItemContent, disableDate: Bool = false, additionalContent: ChatMessageItemAdditionalContent? = nil) {
         self.presentationData = presentationData
-        self.account = account
+        self.context = context
         self.chatLocation = chatLocation
         self.associatedData = associatedData
         self.controllerInteraction = controllerInteraction
@@ -255,16 +260,19 @@ public final class ChatMessageItem: ListViewItem, CustomStringConvertible {
         self.additionalContent = additionalContent
         
         var accessoryItem: ListViewAccessoryItem?
-        let incoming = content.effectivelyIncoming(self.account.peerId)
+        let incoming = content.effectivelyIncoming(self.context.account.peerId)
         
         var effectiveAuthor: Peer?
         let displayAuthorInfo: Bool
         
         switch chatLocation {
             case let .peer(peerId):
-                if peerId == account.peerId {
+                if peerId == context.account.peerId {
                     if let forwardInfo = content.firstMessage.forwardInfo {
                         effectiveAuthor = forwardInfo.author
+                        if effectiveAuthor == nil, let authorSignature = forwardInfo.authorSignature  {
+                            effectiveAuthor = TelegramUser(id: PeerId(namespace: Namespaces.Peer.Empty, id: Int32(clamping: authorSignature.persistentHashValue)), accessHash: nil, firstName: authorSignature, lastName: nil, username: nil, phone: nil, photo: [], botInfo: nil, restrictionInfo: nil, flags: UserInfoFlags())
+                        }
                     }
                     displayAuthorInfo = incoming && effectiveAuthor != nil
                 } else {
@@ -307,7 +315,7 @@ public final class ChatMessageItem: ListViewItem, CustomStringConvertible {
             }
             if !hasActionMedia && !isBroadcastChannel {
                 if let effectiveAuthor = effectiveAuthor {
-                    accessoryItem = ChatMessageAvatarAccessoryItem(account: account, peerId: effectiveAuthor.id, peer: effectiveAuthor, messageReference: MessageReference(message), messageTimestamp: content.index.timestamp, emptyColor: presentationData.theme.theme.chat.bubble.incoming.withoutWallpaper.fill)
+                    accessoryItem = ChatMessageAvatarAccessoryItem(context: context, peerId: effectiveAuthor.id, peer: effectiveAuthor, messageReference: MessageReference(message), messageTimestamp: content.index.timestamp, emptyColor: presentationData.theme.theme.chat.bubble.incoming.withoutWallpaper.fill)
                 }
             }
         }
@@ -381,7 +389,7 @@ public final class ChatMessageItem: ListViewItem, CustomStringConvertible {
             if top.header.id != self.header.id {
                 mergedBottom = .none
             } else {
-                mergedBottom = messagesShouldBeMerged(accountPeerId: self.account.peerId, message, top.message)
+                mergedBottom = messagesShouldBeMerged(accountPeerId: self.context.account.peerId, message, top.message)
             }
         }
         if let bottom = bottom as? ChatMessageItem {
@@ -389,7 +397,7 @@ public final class ChatMessageItem: ListViewItem, CustomStringConvertible {
                 mergedTop = .none
                 dateAtBottom = true
             } else {
-                mergedTop = messagesShouldBeMerged(accountPeerId: self.account.peerId, bottom.message, message)
+                mergedTop = messagesShouldBeMerged(accountPeerId: self.context.account.peerId, bottom.message, message)
             }
         } else if let bottom = bottom as? ChatUnreadItem {
             if bottom.header.id != self.header.id {

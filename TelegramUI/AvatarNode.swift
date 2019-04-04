@@ -200,7 +200,7 @@ public final class AvatarNode: ASDisplayNode {
         }
     }
     
-    public func setPeer(account: Account, peer: Peer, authorOfMessage: MessageReference? = nil, overrideImage: AvatarNodeImageOverride? = nil, emptyColor: UIColor? = nil, synchronousLoad: Bool = false) {
+    public func setPeer(account: Account, theme: PresentationTheme, peer: Peer, authorOfMessage: MessageReference? = nil, overrideImage: AvatarNodeImageOverride? = nil, emptyColor: UIColor? = nil, synchronousLoad: Bool = false) {
         var synchronousLoad = synchronousLoad
         var representation: TelegramMediaImageRepresentation?
         var icon = AvatarNodeIcon.none
@@ -229,8 +229,6 @@ public final class AvatarNode: ASDisplayNode {
             
             self.displaySuspended = true
             self.contents = nil
-            
-            let theme = account.telegramApplicationContext.currentPresentationData.with { $0 }.theme
             
             if let signal = peerAvatarImage(account: account, peer: peer, authorOfMessage: authorOfMessage, representation: representation, emptyColor: emptyColor, synchronousLoad: synchronousLoad) {
                 self.imageReady.set(self.imageNode.ready)
@@ -424,4 +422,51 @@ public final class AvatarNode: ASDisplayNode {
             }
         }
     }
+}
+
+func drawPeerAvatarLetters(context: CGContext, size: CGSize, font: UIFont, letters: [String], accountPeerId: PeerId, peerId: PeerId) {
+    context.beginPath()
+    context.addEllipse(in: CGRect(x: 0.0, y: 0.0, width: size.width, height:
+        size.height))
+    context.clip()
+    
+    let colorIndex: Int
+    if peerId.namespace == -1 {
+        colorIndex = -1
+    } else {
+        colorIndex = abs(Int(clamping: accountPeerId.id &+ peerId.id))
+    }
+    
+    let colorsArray: NSArray
+    if colorIndex == -1 {
+        colorsArray = grayscaleColors
+    } else {
+        colorsArray = gradientColors[colorIndex % gradientColors.count]
+    }
+    
+    var locations: [CGFloat] = [1.0, 0.0]
+    
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    let gradient = CGGradient(colorsSpace: colorSpace, colors: colorsArray, locations: &locations)!
+    
+    context.drawLinearGradient(gradient, start: CGPoint(), end: CGPoint(x: 0.0, y: size.height), options: CGGradientDrawingOptions())
+    
+    context.setBlendMode(.normal)
+    
+    let string = letters.count == 0 ? "" : (letters[0] + (letters.count == 1 ? "" : letters[1]))
+    let attributedString = NSAttributedString(string: string, attributes: [NSAttributedStringKey.font: font, NSAttributedStringKey.foregroundColor: UIColor.white])
+    
+    let line = CTLineCreateWithAttributedString(attributedString)
+    let lineBounds = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
+    
+    let lineOffset = CGPoint(x: string == "B" ? 1.0 : 0.0, y: 0.0)
+    let lineOrigin = CGPoint(x: floorToScreenPixels(-lineBounds.origin.x + (size.width - lineBounds.size.width) / 2.0) + lineOffset.x, y: floorToScreenPixels(-lineBounds.origin.y + (size.height - lineBounds.size.height) / 2.0))
+    
+    context.translateBy(x: size.width / 2.0, y: size.height / 2.0)
+    context.scaleBy(x: 1.0, y: -1.0)
+    context.translateBy(x: -size.width / 2.0, y: -size.height / 2.0)
+    
+    context.translateBy(x: lineOrigin.x, y: lineOrigin.y)
+    CTLineDraw(line, context)
+    context.translateBy(x: -lineOrigin.x, y: -lineOrigin.y)
 }

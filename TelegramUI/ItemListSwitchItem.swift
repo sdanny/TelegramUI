@@ -15,20 +15,24 @@ class ItemListSwitchItem: ListViewItem, ItemListItem {
     let type: ItemListSwitchItemNodeType
     let enableInteractiveChanges: Bool
     let enabled: Bool
+    let maximumNumberOfLines: Int
     let sectionId: ItemListSectionId
     let style: ItemListStyle
     let updated: (Bool) -> Void
+    let tag: ItemListItemTag?
     
-    init(theme: PresentationTheme, title: String, value: Bool, type: ItemListSwitchItemNodeType = .regular, enableInteractiveChanges: Bool = true, enabled: Bool = true, sectionId: ItemListSectionId, style: ItemListStyle, updated: @escaping (Bool) -> Void) {
+    init(theme: PresentationTheme, title: String, value: Bool, type: ItemListSwitchItemNodeType = .regular, enableInteractiveChanges: Bool = true, enabled: Bool = true, maximumNumberOfLines: Int = 1, sectionId: ItemListSectionId, style: ItemListStyle, updated: @escaping (Bool) -> Void, tag: ItemListItemTag? = nil) {
         self.theme = theme
         self.title = title
         self.value = value
         self.type = type
         self.enableInteractiveChanges = enableInteractiveChanges
         self.enabled = enabled
+        self.maximumNumberOfLines = maximumNumberOfLines
         self.sectionId = sectionId
         self.style = style
         self.updated = updated
+        self.tag = tag
     }
     
     func nodeConfiguredForParams(async: @escaping (@escaping () -> Void) -> Void, params: ListViewItemLayoutParams, synchronousLoads: Bool, previousItem: ListViewItem?, nextItem: ListViewItem?, completion: @escaping (ListViewItemNode, @escaping () -> (Signal<Void, NoError>?, (ListViewItemApply) -> Void)) -> Void) {
@@ -77,6 +81,9 @@ private protocol ItemListSwitchNodeImpl {
     var handleColor: UIColor { get set }
     var positiveContentColor: UIColor { get set }
     var negativeContentColor: UIColor { get set }
+    
+    var isOn: Bool { get }
+    func setOn(_ value: Bool, animated: Bool)
 }
 
 extension SwitchNode: ItemListSwitchNodeImpl {
@@ -99,17 +106,24 @@ extension SwitchNode: ItemListSwitchNodeImpl {
 extension IconSwitchNode: ItemListSwitchNodeImpl {
 }
 
-class ItemListSwitchItemNode: ListViewItemNode {
+class ItemListSwitchItemNode: ListViewItemNode, ItemListItemNode {
     private let backgroundNode: ASDisplayNode
     private let topStripeNode: ASDisplayNode
     private let bottomStripeNode: ASDisplayNode
+    private let highlightedBackgroundNode: ASDisplayNode
     
     private let titleNode: TextNode
     private var switchNode: ASDisplayNode & ItemListSwitchNodeImpl
     private let switchGestureNode: ASDisplayNode
     private var disabledOverlayNode: ASDisplayNode?
     
+    private let activateArea: AccessibilityAreaNode
+    
     private var item: ItemListSwitchItem?
+    
+    var tag: ItemListItemTag? {
+        return self.item?.tag
+    }
     
     init(type: ItemListSwitchItemNodeType) {
         self.backgroundNode = ASDisplayNode()
@@ -131,13 +145,31 @@ class ItemListSwitchItemNode: ListViewItemNode {
                 self.switchNode = IconSwitchNode()
         }
         
+        self.highlightedBackgroundNode = ASDisplayNode()
+        self.highlightedBackgroundNode.isLayerBacked = true
+        
         self.switchGestureNode = ASDisplayNode()
+        
+        self.activateArea = AccessibilityAreaNode()
         
         super.init(layerBacked: false, dynamicBounce: false)
         
         self.addSubnode(self.titleNode)
         self.addSubnode(self.switchNode)
         self.addSubnode(self.switchGestureNode)
+        self.addSubnode(self.activateArea)
+        
+        self.activateArea.activate = { [weak self] in
+            guard let strongSelf = self, let item = strongSelf.item, item.enabled else {
+                return false
+            }
+            let value = !strongSelf.switchNode.isOn
+            if item.enableInteractiveChanges {
+                strongSelf.switchNode.setOn(value, animated: true)
+            }
+            item.updated(value)
+            return true
+        }
     }
     
     override func didLoad() {
@@ -154,7 +186,7 @@ class ItemListSwitchItemNode: ListViewItemNode {
         var currentDisabledOverlayNode = self.disabledOverlayNode
         
         return { item, params, neighbors in
-            let contentSize: CGSize
+            var contentSize: CGSize
             let insets: UIEdgeInsets
             let separatorHeight = UIScreenPixel
             let itemBackgroundColor: UIColor
@@ -179,7 +211,9 @@ class ItemListSwitchItemNode: ListViewItemNode {
                     insets = itemListNeighborsGroupedInsets(neighbors)
             }
             
-            let (titleLayout, titleApply) = makeTitleLayout(TextNodeLayoutArguments(attributedString: NSAttributedString(string: item.title, font: titleFont, textColor: item.theme.list.itemPrimaryTextColor), backgroundColor: nil, maximumNumberOfLines: 1, truncationType: .end, constrainedSize: CGSize(width: params.width - params.leftInset - params.rightInset - 80.0, height: CGFloat.greatestFiniteMagnitude), alignment: .natural, cutout: nil, insets: UIEdgeInsets()))
+            let (titleLayout, titleApply) = makeTitleLayout(TextNodeLayoutArguments(attributedString: NSAttributedString(string: item.title, font: titleFont, textColor: item.theme.list.itemPrimaryTextColor), backgroundColor: nil, maximumNumberOfLines: item.maximumNumberOfLines, truncationType: .end, constrainedSize: CGSize(width: params.width - params.leftInset - params.rightInset - 80.0, height: CGFloat.greatestFiniteMagnitude), alignment: .natural, cutout: nil, insets: UIEdgeInsets()))
+            
+            contentSize.height = max(contentSize.height, titleLayout.size.height + 22.0)
             
             if !item.enabled {
                 if currentDisabledOverlayNode == nil {
@@ -196,6 +230,18 @@ class ItemListSwitchItemNode: ListViewItemNode {
             return (ListViewItemNodeLayout(contentSize: contentSize, insets: insets), { [weak self] animated in
                 if let strongSelf = self {
                     strongSelf.item = item
+                    
+                    strongSelf.activateArea.frame = CGRect(origin: CGPoint(x: params.leftInset, y: 0.0), size: CGSize(width: params.width - params.leftInset - params.rightInset, height: layout.contentSize.height))
+                    
+                    strongSelf.activateArea.accessibilityLabel = item.title
+                    strongSelf.activateArea.accessibilityValue = item.value ? "On" : "Off"
+                    strongSelf.activateArea.accessibilityHint = "Tap to change"
+                    var accessibilityTraits = UIAccessibilityTraits()
+                    if item.enabled {
+                    } else {
+                        accessibilityTraits |= UIAccessibilityTraitNotEnabled
+                    }
+                    strongSelf.activateArea.accessibilityTraits = accessibilityTraits
                     
                     let transition: ContainedViewLayoutTransition
                     if animated {
@@ -231,6 +277,8 @@ class ItemListSwitchItemNode: ListViewItemNode {
                         strongSelf.switchNode.handleColor = item.theme.list.itemSwitchColors.handleColor
                         strongSelf.switchNode.positiveContentColor = item.theme.list.itemSwitchColors.positiveColor
                         strongSelf.switchNode.negativeContentColor = item.theme.list.itemSwitchColors.negativeColor
+                        
+                        strongSelf.highlightedBackgroundNode.backgroundColor = item.theme.list.itemHighlightedBackgroundColor
                     }
                     
                     let _ = titleApply()
@@ -294,8 +342,65 @@ class ItemListSwitchItemNode: ListViewItemNode {
                         switchView.isUserInteractionEnabled = item.enableInteractiveChanges
                     }
                     strongSelf.switchGestureNode.isHidden = item.enableInteractiveChanges
+                    
+                    strongSelf.highlightedBackgroundNode.frame = CGRect(origin: CGPoint(x: 0.0, y: -UIScreenPixel), size: CGSize(width: params.width, height: 44.0 + UIScreenPixel + UIScreenPixel))
                 }
             })
+        }
+    }
+    
+    override func accessibilityActivate() -> Bool {
+        guard let item = self.item else {
+            return false
+        }
+        if !item.enabled {
+            return false
+        }
+        if let switchNode = self.switchNode as? IconSwitchNode {
+            switchNode.isOn = !switchNode.isOn
+            item.updated(switchNode.isOn)
+        } else if let switchNode = self.switchNode as? SwitchNode {
+            switchNode.isOn = !switchNode.isOn
+            item.updated(switchNode.isOn)
+        }
+        return true
+    }
+    
+    override func setHighlighted(_ highlighted: Bool, at point: CGPoint, animated: Bool) {
+        super.setHighlighted(highlighted, at: point, animated: animated)
+        
+        if highlighted {
+            self.highlightedBackgroundNode.alpha = 1.0
+            if self.highlightedBackgroundNode.supernode == nil {
+                var anchorNode: ASDisplayNode?
+                if self.bottomStripeNode.supernode != nil {
+                    anchorNode = self.bottomStripeNode
+                } else if self.topStripeNode.supernode != nil {
+                    anchorNode = self.topStripeNode
+                } else if self.backgroundNode.supernode != nil {
+                    anchorNode = self.backgroundNode
+                }
+                if let anchorNode = anchorNode {
+                    self.insertSubnode(self.highlightedBackgroundNode, aboveSubnode: anchorNode)
+                } else {
+                    self.addSubnode(self.highlightedBackgroundNode)
+                }
+            }
+        } else {
+            if self.highlightedBackgroundNode.supernode != nil {
+                if animated {
+                    self.highlightedBackgroundNode.layer.animateAlpha(from: self.highlightedBackgroundNode.alpha, to: 0.0, duration: 0.4, completion: { [weak self] completed in
+                        if let strongSelf = self {
+                            if completed {
+                                strongSelf.highlightedBackgroundNode.removeFromSupernode()
+                            }
+                        }
+                    })
+                    self.highlightedBackgroundNode.alpha = 0.0
+                } else {
+                    self.highlightedBackgroundNode.removeFromSupernode()
+                }
+            }
         }
     }
     

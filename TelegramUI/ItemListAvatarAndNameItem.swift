@@ -327,6 +327,8 @@ class ItemListAvatarAndNameInfoItemNode: ListViewItemNode, ItemListItemNode, Ite
         
         super.init(layerBacked: false, dynamicBounce: false)
         
+        self.isAccessibilityElement = true
+        
         self.addSubnode(self.avatarNode)
         self.addSubnode(self.activityIndicator)
         
@@ -404,6 +406,7 @@ class ItemListAvatarAndNameInfoItemNode: ListViewItemNode, ItemListItemNode, Ite
             var statusText: String = ""
             let statusColor: UIColor
             if let peer = item.peer as? TelegramUser {
+                let servicePeer = isServicePeer(peer)
                 switch item.mode {
                     case .settings:
                         if let phone = peer.phone, !phone.isEmpty {
@@ -420,10 +423,13 @@ class ItemListAvatarAndNameInfoItemNode: ListViewItemNode, ItemListItemNode, Ite
                         if let label = item.label {
                             statusText = label
                             statusColor = item.theme.list.itemSecondaryTextColor
+                        } else if peer.flags.contains(.isSupport), !servicePeer {
+                            statusText = item.strings.Bot_GenericSupportStatus
+                            statusColor = item.theme.list.itemSecondaryTextColor
                         } else if let _ = peer.botInfo {
                             statusText = item.strings.Bot_GenericBotStatus
                             statusColor = item.theme.list.itemSecondaryTextColor
-                        } else if case .generic = item.mode, !(peer.id.namespace == Namespaces.Peer.CloudUser && (peer.id.id == 777000 || peer.id.id == 333000)) {
+                        } else if case .generic = item.mode, !servicePeer {
                             let presence = (item.presence as? TelegramUserPresence) ?? TelegramUserPresence(status: .none, lastActivity: 0)
                             let timestamp = CFAbsoluteTimeGetCurrent() + NSTimeIntervalSince1970
                             let (string, activity) = stringAndActivityForUserPresence(strings: item.strings, dateTimeFormat: item.dateTimeFormat, presence: presence, relativeTo: Int32(timestamp))
@@ -521,6 +527,8 @@ class ItemListAvatarAndNameInfoItemNode: ListViewItemNode, ItemListItemNode, Ite
                 if let strongSelf = self {
                     strongSelf.item = item
                     
+                    strongSelf.accessibilityLabel = displayTitle.composedTitle
+                    
                     strongSelf.layoutWidthAndNeighbors = (params, neighbors)
                     
                     var updatedArrowImage: UIImage?
@@ -597,17 +605,17 @@ class ItemListAvatarAndNameInfoItemNode: ListViewItemNode, ItemListItemNode, Ite
                                 strongSelf.insertSubnode(strongSelf.bottomStripeNode, at: 2)
                             }
                             switch neighbors.top {
-                                case .sameSection:
+                                case .sameSection(false):
                                     strongSelf.topStripeNode.isHidden = true
-                                case .none, .otherSection:
+                                default:
                                     strongSelf.topStripeNode.isHidden = false
                             }
                             
                             let bottomStripeInset: CGFloat
                             switch neighbors.bottom {
-                                case .sameSection:
+                                case .sameSection(false):
                                     bottomStripeInset = params.leftInset + 16.0
-                                case .none, .otherSection:
+                                default:
                                     bottomStripeInset = 0.0
                             }
                         
@@ -637,7 +645,7 @@ class ItemListAvatarAndNameInfoItemNode: ListViewItemNode, ItemListItemNode, Ite
                             overrideImage = AvatarNodeImageOverride.editAvatarIcon
                         }
                         
-                        strongSelf.avatarNode.setPeer(account: item.account, peer: peer, overrideImage: overrideImage, emptyColor: ignoreEmpty ? nil : item.theme.list.mediaPlaceholderColor, synchronousLoad: synchronousLoads)
+                        strongSelf.avatarNode.setPeer(account: item.account, theme: item.theme, peer: peer, overrideImage: overrideImage, emptyColor: ignoreEmpty ? nil : item.theme.list.mediaPlaceholderColor, synchronousLoad: synchronousLoads)
                     }
                     
                     let avatarFrame = CGRect(origin: CGPoint(x: params.leftInset + 15.0, y: avatarOriginY), size: CGSize(width: 66.0, height: 66.0))
@@ -935,10 +943,10 @@ class ItemListAvatarAndNameInfoItemNode: ListViewItemNode, ItemListItemNode, Ite
         }
     }
     
-    func avatarTransitionNode() -> ((ASDisplayNode, () -> UIView?), CGRect) {
+    func avatarTransitionNode() -> ((ASDisplayNode, () -> (UIView?, UIView?)), CGRect) {
         let avatarNode = self.avatarNode
         return ((self.avatarNode, { [weak avatarNode] in
-            return avatarNode?.view.snapshotContentTree(unhide: true)
+            return (avatarNode?.view.snapshotContentTree(unhide: true), nil)
         }), self.avatarNode.bounds)
     }
     
