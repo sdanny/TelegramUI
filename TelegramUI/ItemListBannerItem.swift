@@ -68,6 +68,7 @@ class ItemListBannerItemNode: ListViewItemNode, ItemListItemNode {
     private let descriptionNode: TextNode
     private let actionNode: TextNode
     private let imageNode: ImageNode
+    private let bubbleNode: ASDisplayNode
     
     init() {
         let scale = UIScreen.main.scale
@@ -82,6 +83,9 @@ class ItemListBannerItemNode: ListViewItemNode, ItemListItemNode {
         descriptionNode.contentMode = .center
         descriptionNode.contentsScale = scale
         
+        bubbleNode = ASDisplayNode()
+        bubbleNode.backgroundColor = UIColor.black.withAlphaComponent(0.7)
+        
         actionNode = TextNode()
         actionNode.isUserInteractionEnabled = false
         actionNode.contentMode = .center
@@ -95,6 +99,7 @@ class ItemListBannerItemNode: ListViewItemNode, ItemListItemNode {
         addSubnode(imageNode)
         addSubnode(titleNode)
         addSubnode(descriptionNode)
+        addSubnode(bubbleNode)
         addSubnode(actionNode)
     }
     
@@ -139,7 +144,10 @@ class ItemListBannerItemNode: ListViewItemNode, ItemListItemNode {
                 
                 self.titleNode.frame = CGRect(origin: CGPoint(x: (contentSize.width - titleLayout.size.width) / 2, y: verticalInset), size: titleLayout.size)
                 self.descriptionNode.frame = CGRect(origin: CGPoint(x: (contentSize.width - descriptionLayout.size.width) / 2, y: verticalInset + titleLayout.size.height), size: descriptionLayout.size)
-                self.actionNode.frame = CGRect(origin: CGPoint(x: (contentSize.width - actionLayout.size.width) / 2, y: imageSize.height - 48), size: actionLayout.size)
+                let actionRect = CGRect(origin: CGPoint(x: (contentSize.width - actionLayout.size.width) / 2, y: imageSize.height - 48), size: actionLayout.size)
+                self.actionNode.frame = actionRect
+                self.bubbleNode.frame = actionRect.insetBy(dx: -6, dy: -4)
+                self.bubbleNode.layer.cornerRadius = self.bubbleNode.bounds.height / 2
                 self.imageNode.frame = CGRect(origin: .zero, size: CGSize(width: contentSize.width, height: imageSize.height))
             })
         }
