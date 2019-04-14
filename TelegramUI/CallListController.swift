@@ -49,8 +49,6 @@ public final class CallListController: ViewController {
         self.statusBar.statusBarStyle = self.presentationData.theme.rootController.statusBar.style.style
         
         if case .tab = self.mode {
-            self.navigationItem.rightBarButtonItem = UIBarButtonItem(image: PresentationResourcesRootController.navigationCallIcon(self.presentationData.theme), style: .plain, target: self, action: #selector(self.callPressed))
-            
             let icon: UIImage?
             if (useSpecialTabBarIcons()) {
                 icon = UIImage(bundleImageName: "Chat List/Tabs/NY/IconCalls")
@@ -118,8 +116,6 @@ public final class CallListController: ViewController {
                         self.navigationItem.leftBarButtonItem = UIBarButtonItem(title: self.presentationData.strings.Common_Edit, style: .plain, target: self, action: #selector(self.editPressed))
                     }
                 }
-                
-                self.navigationItem.rightBarButtonItem = UIBarButtonItem(image: PresentationResourcesRootController.navigationCallIcon(self.presentationData.theme), style: .plain, target: self, action: #selector(self.callPressed))
             case .navigation:
                 if self.editingMode {
                     self.navigationItem.rightBarButtonItem = UIBarButtonItem(title: self.presentationData.strings.Common_Done, style: .done, target: self, action: #selector(self.donePressed))
@@ -188,34 +184,6 @@ public final class CallListController: ViewController {
         super.containerLayoutUpdated(layout, transition: transition)
         
         self.controllerNode.containerLayoutUpdated(layout, navigationBarHeight: self.navigationHeight, transition: transition)
-    }
-    
-    @objc func callPressed() {
-        let controller = ContactSelectionController(context: self.context, title: { $0.Calls_NewCall })
-        self.createActionDisposable.set((controller.result
-        |> take(1)
-        |> deliverOnMainQueue).start(next: { [weak controller, weak self] peer in
-            controller?.dismissSearch()
-            if let strongSelf = self, let contactPeer = peer, case let .peer(peer, _) = contactPeer {
-                strongSelf.call(peer.id, began: {
-                    if let strongSelf = self {
-                        let _ = (strongSelf.context.sharedContext.hasOngoingCall.get()
-                        |> filter { $0 }
-                        |> timeout(1.0, queue: Queue.mainQueue(), alternate: .single(true))
-                        |> delay(0.5, queue: Queue.mainQueue())
-                        |> take(1)
-                        |> deliverOnMainQueue).start(next: { _ in
-                            if let _ = self, let controller = controller, let navigationController = controller.navigationController as? NavigationController {
-                                if navigationController.viewControllers.last === controller {
-                                    let _ = navigationController.popViewController(animated: true)
-                                }
-                            }
-                        })
-                    }
-                })
-            }
-        }))
-        (self.navigationController as? NavigationController)?.pushViewController(controller)
     }
     
     @objc func editPressed() {
