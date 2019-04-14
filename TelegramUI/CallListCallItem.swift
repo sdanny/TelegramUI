@@ -304,7 +304,7 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
             
             var leftInset: CGFloat = 86.0 + params.leftInset
             let rightInset: CGFloat = 13.0 + params.rightInset
-            var callIconRightInset: CGFloat = rightInset
+            let callIconRightInset: CGFloat = rightInset
             
             let insets: UIEdgeInsets
             let separatorHeight = UIScreenPixel
@@ -430,7 +430,8 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
                 }
                 
                 return (self.avatarNode.ready, { [weak self] animated in
-                    guard let self = self else { return }
+                    guard let self = self,
+                        self.contentSize.width > 0 else { return }
                     self.layoutParams = (item, params, first, last, firstWithHeader)
                     
                     let revealOffset = self.revealOffset
