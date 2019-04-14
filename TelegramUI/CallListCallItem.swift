@@ -187,6 +187,7 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
     private let statusNode: TextNode
     private let dateNode: TextNode
     private let typeIconNode: ASImageNode
+    private let callButtonNode: HighlightableButtonNode
     
     var editableControlNode: ItemListEditableControlNode?
     
@@ -218,6 +219,9 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
         self.typeIconNode.displayWithoutProcessing = true
         self.typeIconNode.displaysAsynchronously = false
         
+        self.callButtonNode = HighlightableButtonNode()
+        self.callButtonNode.hitTestSlop = UIEdgeInsets(top: -6.0, left: -6.0, bottom: -6.0, right: -10.0)
+        
         super.init(layerBacked: false, dynamicBounce: false, rotated: false, seeThrough: false)
         
         self.addSubnode(self.backgroundNode)
@@ -226,6 +230,9 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
         self.addSubnode(self.titleNode)
         self.addSubnode(self.statusNode)
         self.addSubnode(self.dateNode)
+        self.addSubnode(self.callButtonNode)
+        
+        self.callButtonNode.addTarget(self, action: #selector(self.callPressed), forControlEvents: .touchUpInside)
     }
     
     override func layoutForParams(_ params: ListViewItemLayoutParams, item: ListViewItem, previousItem: ListViewItem?, nextItem: ListViewItem?) {
@@ -277,9 +284,12 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
         
         return { [weak self] item, params, first, last, firstWithHeader, neighbors in
             var updatedTheme: PresentationTheme?
+            var updatedCallIcon = false
             
             if currentItem?.theme !== item.theme {
                 updatedTheme = item.theme
+                
+                updatedCallIcon = true
             }
             
             let editingOffset: CGFloat
@@ -294,6 +304,7 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
             
             var leftInset: CGFloat = 86.0 + params.leftInset
             let rightInset: CGFloat = 13.0 + params.rightInset
+            var callIconRightInset: CGFloat = rightInset
             
             let insets: UIEdgeInsets
             let separatorHeight = UIScreenPixel
@@ -311,7 +322,7 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
                     insets = itemListNeighborsGroupedInsets(neighbors)
             }
             
-            var dateRightInset: CGFloat = 12 + params.rightInset
+            var dateRightInset: CGFloat = 43 + params.rightInset
             if item.editing {
                 leftInset += editingOffset
                 dateRightInset += 5.0
@@ -408,6 +419,7 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
             let nodeLayout = ListViewItemNodeLayout(contentSize: CGSize(width: params.width, height: 50.0), insets: UIEdgeInsets(top: firstWithHeader ? 29.0 : 0.0, left: 0.0, bottom: 0.0, right: 0.0))
             
             let outgoingIcon = PresentationResourcesCallList.outgoingIcon(item.theme)
+            let callIcon = PresentationResourcesRootController.navigationCallIcon(item.theme)
             
             let contentSize = nodeLayout.contentSize
             
@@ -524,6 +536,15 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
                     }
                     self.typeIconNode.isHidden = !hasOutgoing
                     
+                    if let callIcon = callIcon {
+                        if updatedCallIcon {
+                            self.callButtonNode.setImage(callIcon, for: [])
+                        }
+                        let callButtonSize = CGSize(width: 26, height: 26)
+                        transition.updateFrame(node: self.callButtonNode, frame: CGRect(origin: CGPoint(x: revealOffset + params.width - callIconRightInset - callButtonSize.width, y: floor((nodeLayout.contentSize.height - callButtonSize.height) / 2.0)), size: callButtonSize))
+                    }
+                    transition.updateAlpha(node: self.callButtonNode, alpha: item.editing ? 0.0 : 1.0)
+                    
                     let topHighlightInset: CGFloat = (first || !nodeLayout.insets.top.isZero) ? 0.0 : separatorHeight
                     self.backgroundNode.frame = CGRect(origin: CGPoint(x: 0.0, y: 0.0), size: CGSize(width: nodeLayout.contentSize.width, height: nodeLayout.contentSize.height))
                     self.highlightedBackgroundNode.frame = CGRect(origin: CGPoint(x: 0.0, y: -nodeLayout.insets.top - topHighlightInset), size: CGSize(width: nodeLayout.size.width, height: nodeLayout.size.height + topHighlightInset))
@@ -583,10 +604,12 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
             
             let leftInset: CGFloat = 86.0 + params.leftInset + editingOffset
             let rightInset: CGFloat = 13.0 + params.rightInset
+            var callIconRightInset: CGFloat = rightInset
             
-            var dateRightInset: CGFloat = 12 + params.rightInset
+            var dateRightInset: CGFloat = 43 + params.rightInset
             if item.editing {
                 dateRightInset += 5.0
+                callIconRightInset -= 36.0
             }
             
             transition.updateFrame(node: self.avatarNode, frame: CGRect(origin: CGPoint(x: revealOffset + leftInset - 52.0, y: 5.0), size: CGSize(width: 40.0, height: 40.0)))
@@ -598,6 +621,8 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
             transition.updateFrame(node: self.dateNode, frame: CGRect(origin: CGPoint(x: editingOffset + revealOffset + self.bounds.size.width - dateRightInset - self.dateNode.bounds.size.width, y: self.dateNode.frame.minY), size: self.dateNode.bounds.size))
             
             transition.updateFrame(node: self.typeIconNode, frame: CGRect(origin: CGPoint(x: revealOffset + leftInset - 76.0, y: self.typeIconNode.frame.minY), size: self.typeIconNode.bounds.size))
+            
+            transition.updateFrame(node: self.callButtonNode, frame: CGRect(origin: CGPoint(x: revealOffset + self.bounds.size.width - callIconRightInset - self.callButtonNode.bounds.width, y: self.callButtonNode.frame.minY), size: self.callButtonNode.bounds.size))
         }
     }
 
@@ -607,5 +632,10 @@ class CallListCallItemNode: ItemListRevealOptionsItemNode {
         if let item = self.layoutParams?.0 {
             item.interaction.delete([item.message.id])
         }
+    }
+    
+    @objc private func callPressed() {
+        guard let item = self.layoutParams?.0 else { return }
+        item.interaction.call(item.message.id.peerId)
     }
 }
